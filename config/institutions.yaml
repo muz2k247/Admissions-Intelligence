@@ -1,0 +1,206 @@
+# config/institutions.yaml
+# Machine-readable registry — all scraper/extraction code reads from this file.
+# Never hardcode an institution's URL, selector, or campus list directly in code (see CLAUDE.md).
+#
+# All entries below were verified against the institution's live site during registry-building.
+# "verified: true" means the URL was confirmed reachable and correct as of that check.
+# Dates/fees are intentionally NOT stored here — they change frequently and are the scraper's
+# job to capture at runtime. This file describes STRUCTURE (URLs, campuses, format), not content.
+#
+# Schema:
+#   id: short slug
+#   name: full institution name
+#   admitting_body: true if this institution admits on behalf of other named colleges
+#   ug_pg_mixed: true if UG and PG appear together on the same pages (needs content-level filtering)
+#   sources: list of scrape targets
+#     campus: null when a single unified portal handles all campuses (campus chosen in-application),
+#             OR a campus name when that campus has a genuinely distinct portal/URL
+#     url: base admissions URL (canonical, verified)
+#     format: html | html+pdf
+#     verified: true/false
+#     note: anything needing human awareness or follow-up
+
+institutions:
+
+  # ---- Engineering / Non-medical ----
+
+  - id: uet
+    name: University of Engineering & Technology, Lahore
+    admitting_body: false
+    ug_pg_mixed: true
+    sources:
+      - campus: "Lahore (Main + sub-campuses)"
+        url: "https://admission.uet.edu.pk"
+        format: html
+        verified: true
+        note: "CORRECTED: canonical portal is admission.uet.edu.pk (singular). apply.uet.edu.pk also resolves/mirrors. Lahore's KSK/Narowal/Rachna(Faisalabad) sub-campuses are handled within this same portal (campus selected in-application) — they are NOT separate URLs. Site mixes BE/BS with MS/PhD."
+      - campus: "Taxila"
+        url: "https://admissions.uettaxila.edu.pk"
+        format: html
+        verified: true
+        note: "UET Taxila is a separate chartered university with its own portal — genuinely distinct source, not a sub-campus of UET Lahore."
+
+  - id: nust
+    name: National University of Sciences & Technology
+    admitting_body: false
+    ug_pg_mixed: false
+    sources:
+      - campus: null
+        url: "https://ugadmissions.nust.edu.pk"
+        format: html
+        verified: true
+        note: "UG-only portal. PG has a fully separate portal (pgadmission.nust.edu.pk), so UG/PG is cleanly split at the URL level for NUST — a rare exception. Multiple schools/campuses handled within this one UG portal."
+
+  - id: giki
+    name: Ghulam Ishaq Khan Institute
+    admitting_body: false
+    ug_pg_mixed: false
+    sources:
+      - campus: null
+        url: "https://admissions.giki.edu.pk"
+        format: html
+        verified: true
+        note: "UG-only portal (single campus, Topi). Graduate admissions on separate portal (gikadmissions.giki.edu.pk). Clean UG/PG URL split."
+
+  - id: pieas
+    name: Pakistan Institute of Engineering and Applied Sciences
+    admitting_body: false
+    ug_pg_mixed: true
+    sources:
+      - campus: null
+        url: "https://admissions.pieas.edu.pk"
+        format: html
+        verified: true
+        note: "Single campus (Nilore, Islamabad). BS/MS/PhD all live on the same admissions site (unlike NUST/GIKI) — content-level UG/PG filtering required. Application login at red.pieas.edu.pk."
+
+  - id: fast_nu
+    name: National University of Computer and Emerging Sciences (FAST-NU)
+    admitting_body: false
+    ug_pg_mixed: true
+    sources:
+      - campus: null
+        url: "https://admissions.nu.edu.pk"
+        format: html
+        verified: true
+        note: "ONE central portal for all 6 campuses (Islamabad, Lahore, Karachi, Peshawar, Chiniot-Faisalabad, Multan). Campus is selected within the application — do NOT model as 6 separate sources."
+
+  - id: pu
+    name: University of the Punjab
+    admitting_body: false
+    ug_pg_mixed: true
+    sources:
+      - campus: null
+        url: "https://admissions.pu.edu.pk/admissions/"
+        format: html+pdf
+        verified: true
+        note: "CORRECTED: application portal is admissions.pu.edu.pk (plural). Notices/schedules/merit lists live on main site pu.edu.pk/home/admission_notices and are heavily PDF-based (date sheets, merit lists) — PDF fallback required. TRAP: admissions.puchd.ac.in is Panjab University CHANDIGARH, INDIA — a different university. Pin strictly to pu.edu.pk."
+
+  - id: comsats
+    name: COMSATS University Islamabad
+    admitting_body: false
+    ug_pg_mixed: true
+    sources:
+      - campus: null
+        url: "https://admissions.comsats.edu.pk"
+        format: html
+        verified: true
+        note: "CORRECTED: single unified admission system covering ALL campuses (Islamabad, Abbottabad, Lahore, Sahiwal, Wah, Attock, Vehari, Virtual). Campus selected within the one application. Earlier assumption of per-campus subdomains as separate scrape targets was WRONG — the subdomains are campus info pages that feed into this central system. Do NOT scrape 7 subdomains; scrape this one."
+
+  - id: lums
+    name: Lahore University of Management Sciences
+    admitting_body: false
+    ug_pg_mixed: true
+    sources:
+      - campus: null
+        url: "https://admission.lums.edu.pk"
+        format: html
+        verified: true
+        note: "Single campus (DHA Lahore). UG at /undergraduate-programmes, graduate at /graduate-programmes (partially URL-separable but keep content-level filtering to be safe). Application portal at admissions.lums.edu.pk/application/. HTML, no PDF dependency observed."
+
+  - id: itu
+    name: Information Technology University
+    admitting_body: false
+    ug_pg_mixed: true
+    sources:
+      - campus: null
+        url: "https://itu.edu.pk/admissions"
+        format: html
+        verified: true
+        note: "CORRECTED: current application portal is admissions.itu.edu.pk/login (per ITU's own FAQ); application.itu.edu.pk is older/secondary. Single campus (Arfa Tower / Barki, Lahore). TRAP: itu.edu (no .pk) is a US institution — pin to itu.edu.pk. UG/PG mixed."
+
+  - id: ist
+    name: Institute of Space Technology
+    admitting_body: false
+    ug_pg_mixed: true
+    sources:
+      - campus: null
+        url: "https://ist.edu.pk/admission"
+        format: html
+        verified: true
+        note: "UG application portal: ugadmission.ist.edu.pk (verified live). General eportal.ist.edu.pk also exists. Main campus Islamabad; branch campuses in Karachi and Kahuta exist but admissions appear centralized through the one UG portal. UG/PG mixed on notice pages."
+
+  - id: air_university
+    name: Air University
+    admitting_body: false
+    ug_pg_mixed: true
+    sources:
+      - campus: "Islamabad & Punjab campuses"
+        url: "https://portals.au.edu.pk/admissions/"
+        format: html+pdf
+        verified: true
+        note: "Central portal (au.edu.pk, application at portals.au.edu.pk/admissions). Covers Islamabad E-9, Islamabad H-11, Kamra, Multan, Kharian. Includes an MBBS program (merit lists posted as PDF/notices). UG/PG/MBBS mixed."
+      - campus: "Karachi"
+        url: "https://kc.au.edu.pk/Pages/Admission/admission_schedule.aspx"
+        format: html+pdf
+        verified: true
+        note: "CORRECTED from earlier 'unverified': Karachi campus is a genuinely distinct source — own schedule, own admissions email (admissions@khi.au.edu.pk), own site section (kc.au.edu.pk). Treat as separate source, not a guess."
+
+  # ---- Medical ----
+
+  - id: uhs
+    name: University of Health Sciences
+    admitting_body: true
+    ug_pg_mixed: true
+    sources:
+      - campus: null
+        url: "https://www.uhs.edu.pk/admissions.php"
+        format: html+pdf
+        verified: true
+        constituent_colleges: "ALL public-sector medical/dental colleges of Punjab (King Edward, Allama Iqbal, Nishtar, etc.) — allocated by merit, NOT fixed per-source. The specific college is a per-record extraction result."
+        note: "UHS is the central admitting authority for public-sector MBBS/BDS across Punjab. Notices/merit lists at /admissions.php, /publicadmission.php, /privateadmission.php — heavily PDF-based (merit/selection lists are almost all PDF). Application portals: public-mbbs.uhs.edu.pk, public-bds.uhs.edu.pk (separate for MBBS vs BDS), plus private-* equivalents. Also runs UGAT for allied-health BS programs. UG/PG mixed."
+
+  - id: nums
+    name: National University of Medical Sciences
+    admitting_body: true
+    ug_pg_mixed: true
+    sources:
+      - campus: null
+        url: "https://numspak.edu.pk/admissions-details.php"
+        format: html+pdf
+        verified: true
+        constituent_colleges: "NUMS Constituent + Affiliated + Armed-Forces-administered medical/dental colleges (includes CMH-network colleges, Army Medical College, and others) — allocated via centralized NUMS MDCAT merit, NOT fixed per-source. Specific college is a per-record extraction result."
+        note: "CORRECTED to html+pdf: NUMS is the 'Admitting University' running centralized MDCAT-based MBBS/BDS admission for its constituent/affiliated/military colleges. Advertisements and merit lists are PDFs. This is where CMH/AMC/FMDC-type colleges sit — do NOT scrape them as separate institutions. UG (MBBS/BDS/BSN) mixed with PG and certificate programs."
+
+  - id: aku
+    name: Aga Khan University
+    admitting_body: false
+    ug_pg_mixed: true
+    sources:
+      - campus: "Pakistan (Karachi) — MBBS"
+        url: "https://www.aku.edu/admissions/mbbs/"
+        format: html+pdf
+        verified: true
+        note: "CORRECTED to html+pdf and campus-scoped: base is aku.edu (no .pk; AKU is international). TRAP: AKU also runs MBChB in East Africa (Nairobi) and other multi-country programs on the same site — target the PAKISTAN MBBS specifically, not East Africa medical programs. Admission info is heavily PDF (admission-information-MBBS.PDF). Runs its own entry test (not MDCAT-pooled)."
+
+  # ---- Other ----
+
+  - id: bahria
+    name: Bahria University
+    admitting_body: false
+    ug_pg_mixed: true
+    sources:
+      - campus: null
+        url: "https://www.bahria.edu.pk/Home/AdmissionRoadmap?programType=UnderGraduate"
+        format: html
+        verified: true
+        note: "Single unified system; campus is a URL/application PARAMETER (e.g. &campus=karachi), not a separate portal. Campuses: E-8 Islamabad, H-11 Islamabad, Lahore, Karachi, plus Health Sciences campuses (Karachi & Islamabad, medical) and Institute of Professional Psychology. Merit lists are campus-specific. Do NOT model campuses as separate sources — pass campus as a parameter. UG/PG mixed. TRAP: bui.edu.pk is an old/legacy Bahria domain; use bahria.edu.pk."
