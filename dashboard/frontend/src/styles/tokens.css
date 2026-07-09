@@ -1,0 +1,100 @@
+/* Design tokens. Semantic, not raw hex in components (ui-ux-pro-max: color-semantic). */
+:root {
+  --color-primary: #1e3a5f;
+  --color-primary-hover: #16304e;
+  --color-primary-fg: #ffffff;
+
+  --color-bg: #ffffff;
+  --color-surface: #f8fafc;
+  --color-surface-hover: #f1f5f9;
+  --color-border: #e2e8f0;
+
+  --color-text: #0f172a;
+  --color-text-secondary: #475569;
+  --color-text-muted: #64748b;
+
+  --color-success: #15803d;
+  --color-success-bg: #f0fdf4;
+  --color-warning: #b45309;
+  --color-warning-bg: #fffbeb;
+  --color-danger: #b91c1c;
+  --color-danger-bg: #fef2f2;
+  --color-neutral: #475569;
+  --color-neutral-bg: #f1f5f9;
+
+  --color-ug: #1d4ed8;
+  --color-ug-bg: #eff6ff;
+  --color-pg: #7e22ce;
+  --color-pg-bg: #faf5ff;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-8: 48px;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+
+  --font-size-xs: 12px;
+  --font-size-sm: 14px;
+  --font-size-base: 16px;
+  --font-size-lg: 18px;
+  --font-size-xl: 24px;
+  --font-size-2xl: 32px;
+
+  --line-height-body: 1.6;
+
+  --duration-fast: 150ms;
+  --duration-base: 250ms;
+  --easing-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --z-nav: 100;
+  --z-drawer: 200;
+
+  --touch-target: 44px;
+  --container-max: 1280px;
+
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-primary: #5b8ac6;
+    --color-primary-hover: #7aa3d6;
+    --color-primary-fg: #0b1220;
+
+    --color-bg: #0b1220;
+    --color-surface: #131c2e;
+    --color-surface-hover: #1a2540;
+    --color-border: #263352;
+
+    --color-text: #e6edf7;
+    --color-text-secondary: #a9b7cf;
+    --color-text-muted: #7e8bab;
+
+    --color-success: #4ade80;
+    --color-success-bg: #0f2a1a;
+    --color-warning: #fbbf24;
+    --color-warning-bg: #2a2110;
+    --color-danger: #f87171;
+    --color-danger-bg: #2a1414;
+    --color-neutral: #a9b7cf;
+    --color-neutral-bg: #1a2540;
+
+    --color-ug: #7fb0ff;
+    --color-ug-bg: #10203f;
+    --color-pg: #d8a9ff;
+    --color-pg-bg: #241333;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

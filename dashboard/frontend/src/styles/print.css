@@ -1,0 +1,54 @@
+/* Print / Save-as-PDF view. .no-print elements (nav, filters, buttons) are
+ * hidden already via global.css; this file makes the remaining content
+ * read well as a static document. */
+
+@media print {
+  :root {
+    color-scheme: light;
+  }
+
+  body {
+    background: #ffffff;
+    color: #0f172a;
+  }
+
+  .print-only {
+    display: block;
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 16px;
+  }
+
+  .app-main {
+    padding: 0;
+    max-width: none;
+  }
+
+  .record-grid {
+    display: block;
+  }
+
+  .record-card {
+    break-inside: avoid;
+    border: 1px solid #cbd5e1;
+    background: #ffffff;
+    margin-bottom: 12px;
+    box-shadow: none;
+  }
+
+  .record-card--skeleton {
+    display: none;
+  }
+
+  .badge {
+    border: 1px solid currentColor;
+    background: none !important;
+  }
+
+  a[href]::after {
+    content: " (" attr(href) ")";
+    font-size: 10px;
+    color: #475569;
+    word-break: break-all;
+  }
+}
