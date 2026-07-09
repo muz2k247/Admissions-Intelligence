@@ -57,6 +57,60 @@ Every institution is one or more **sources**; every source has a `campus` field 
 4. **Every record keeps its source URL.** No exceptions, even for high-confidence extractions.
 5. **A correct answer late beats a wrong answer immediately.** When in doubt, leave it null or route to `Ambiguous` rather than force a value.
 
+## Security & Secrets Management (CRITICAL)
+
+**ABSOLUTE RULES — NEVER BREAK THESE:**
+
+1. **Never commit secrets to git.** This includes:
+   - `.env` file (should be in `.gitignore`)
+   - `firebase-key.json` or any service account keys
+   - API keys, tokens, passwords
+   - Private encryption keys
+   - Database credentials
+   
+   If you accidentally commit a secret, immediately rotate it in Firebase Console / Google Cloud. Committed secrets are compromised.
+
+2. **Use `.env` file for all local configuration:**
+   - Copy `.env.example` → `.env` locally (never commit `.env`)
+   - All credentials go in `.env`, referenced as environment variables
+   - Backend reads from `os.environ.get("VARIABLE_NAME")`
+   - Frontend reads from `import.meta.env.VITE_VARIABLE_NAME`
+
+3. **Never log, print, or mention secrets in any form:**
+   - Don't log `os.environ.get("FIREBASE_SERVICE_ACCOUNT_KEY_JSON")` even for debugging
+   - Don't include secret values in error messages
+   - Don't mention secrets in commit messages, PR descriptions, or code comments
+   - Don't paste secrets in conversations with Claude or any LLM (I will never ask for them)
+
+4. **Never hardcode secrets in code:**
+   - Bad: `FIREBASE_KEY = "eyJhbGc..."`
+   - Good: `FIREBASE_KEY = os.environ.get("FIREBASE_SERVICE_ACCOUNT_KEY_JSON")`
+
+5. **Cloud deployment uses cloud-native secret management:**
+   - Cloud Run: Set secrets via Google Cloud Console (not in Dockerfile or dockerfile build args)
+   - GitHub Actions: Use GitHub Secrets (not env vars in yaml files)
+   - Never pass secrets as command-line arguments
+
+6. **Service account keys are treated as highly sensitive:**
+   - Firebase service accounts have admin access to Firestore
+   - Restrict to minimal required permissions (read/write `extracted_records` collection only)
+   - Store locally in `.env` only during development
+   - Rotate keys regularly (Firebase Console: Service Accounts tab → Manage Keys)
+   - If key is exposed: Delete immediately in Firebase Console, regenerate, update `.env`
+
+7. **If you discover a secret has been exposed:**
+   - STOP immediately
+   - Rotate the key/credential in the cloud console (Firebase, GCP, etc.)
+   - Update all `.env` files with new credentials
+   - Verify the commit containing the secret is not reachable (force-push only if it's local, never if pushed)
+   - Document what happened for audit purposes
+
+8. **Testing and development:**
+   - Use separate Firebase project for development (not production credentials)
+   - Test fixtures should never contain real secrets
+   - Mock credentials for unit tests (use fake but valid-format strings)
+   - Integration tests should use development-only service accounts
+
 ## Format handling
 HTML is primary for all 15 sources. PDF fallback is required for Punjab University and UHS/NUMS notices specifically (both post supplementary PDFs — date sheets, merit lists). Build the PDF path as a fallback the HTML scraper calls, not a separate parallel pipeline.
 
