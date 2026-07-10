@@ -3,13 +3,13 @@ import { fetchInstitutions, fetchRecords } from "./api";
 import FilterBar from "./components/FilterBar";
 import RecordCard from "./components/RecordCard";
 import EmptyState from "./components/EmptyState";
-import { PrinterIcon } from "./components/Icons";
+import ThemeToggle from "./components/ThemeToggle";
 
 export default function App() {
   const [institutions, setInstitutions] = useState([]);
   const [records, setRecords] = useState([]);
   const [institutionId, setInstitutionId] = useState("");
-  const [degreeLevel, setDegreeLevel] = useState("");
+  const [degreeLevel, setDegreeLevel] = useState("Undergraduate");
   const [status, setStatus] = useState("loading"); // loading | ready | error
   const [reloadToken, setReloadToken] = useState(0);
 
@@ -52,19 +52,16 @@ export default function App() {
         Skip to main content
       </a>
 
-      <header className="app-header no-print">
+      <header className="app-header">
         <div className="app-header__inner">
           <h1 className="app-header__title">Admissions Intelligence</h1>
-          <button type="button" className="button button--secondary" onClick={() => window.print()}>
-            <PrinterIcon />
-            Print / Save as PDF
-          </button>
+          <div className="app-header__actions">
+            <ThemeToggle />
+          </div>
         </div>
       </header>
 
       <main id="main-content" className="app-main">
-        <div className="app-header__title print-only">Admissions Intelligence</div>
-
         <FilterBar
           institutions={institutions}
           institutionId={institutionId}

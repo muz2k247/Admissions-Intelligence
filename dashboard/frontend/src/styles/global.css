@@ -68,9 +68,3 @@ button {
 table {
   border-collapse: collapse;
 }
-
-@media print {
-  .no-print {
-    display: none !important;
-  }
-}

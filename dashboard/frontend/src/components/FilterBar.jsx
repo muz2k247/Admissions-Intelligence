@@ -6,7 +6,7 @@ export default function FilterBar({
   onDegreeLevelChange,
 }) {
   return (
-    <form className="filter-bar no-print" role="search" aria-label="Filter admission records">
+    <form className="filter-bar" role="search" aria-label="Filter admission records">
       <div className="filter-bar__field">
         <label htmlFor="filter-institution">Institution</label>
         <select
@@ -30,10 +30,8 @@ export default function FilterBar({
           value={degreeLevel}
           onChange={(e) => onDegreeLevelChange(e.target.value)}
         >
-          <option value="">All levels</option>
           <option value="Undergraduate">Undergraduate</option>
-          <option value="Postgraduate">Postgraduate</option>
-          <option value="Ambiguous">Ambiguous</option>
+          <option value="Ambiguous">Needs review (Ambiguous)</option>
         </select>
       </div>
     </form>

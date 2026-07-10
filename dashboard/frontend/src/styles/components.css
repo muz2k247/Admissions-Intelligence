@@ -1,9 +1,5 @@
 /* App shell */
 
-.print-only {
-  display: none;
-}
-
 .app-header {
   position: sticky;
   top: 0;
@@ -34,6 +30,12 @@
   font-size: var(--font-size-lg);
   font-weight: 700;
   margin: 0;
+}
+
+.app-header__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .app-main {
@@ -82,6 +84,20 @@
 
 .button--secondary:hover {
   background: var(--color-primary-hover);
+}
+
+.button--icon {
+  width: var(--touch-target);
+  padding: 0;
+  justify-content: center;
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  color: var(--color-text-secondary);
+}
+
+.button--icon:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
 }
 
 .link-button {
@@ -203,6 +219,14 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  box-shadow: var(--shadow-card);
+  transition: box-shadow var(--duration-base) var(--easing-out),
+    border-color var(--duration-base) var(--easing-out);
+}
+
+.record-card:hover {
+  box-shadow: var(--shadow-card-hover);
+  border-color: var(--color-text-muted);
 }
 
 .record-card--skeleton {
