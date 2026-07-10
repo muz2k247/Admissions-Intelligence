@@ -20,7 +20,7 @@ from extraction.fields import (
 )
 from extraction.chunker import Chunk, chunk_scraped_record
 from extraction.classify import load_classifier_results
-from extraction.run import run_chunk, run_build
+from extraction.run import build_extracted_records, run_chunk, run_build
 
 
 # ---------------------------------------------------------------------------
@@ -572,3 +572,91 @@ class TestRunChunkAndBuild:
 
         assert not (out_dir / "broken.json").exists()
         assert list(out_dir.glob("*.json")) == []
+
+    def test_run_build_excludes_postgraduate_records_from_output(self, tmp_path):
+        # Project scope is undergrad-only: a Postgraduate-classified chunk
+        # must never reach the extracted output directory at all.
+        scraped_dir = tmp_path / "scraped"
+        self._write_scraped_record(scraped_dir, "giki.json")
+
+        classified_path = tmp_path / "classified.json"
+        classified_path.write_text(
+            json.dumps({"Postgraduate": ["giki"]}), encoding="utf-8"
+        )
+
+        out_dir = tmp_path / "extracted"
+        run_build(scraped_dir, classified_path, out_dir)
+
+        assert not (out_dir / "giki.json").exists()
+        assert list(out_dir.glob("*.json")) == []
+
+
+# ---------------------------------------------------------------------------
+# run.py — build_extracted_records (UG-only enforcement)
+# ---------------------------------------------------------------------------
+
+class TestBuildExtractedRecordsDegreeLevelFiltering:
+    def _scraped_record(self, institution_id="giki", **overrides):
+        record = {
+            "institution_id": institution_id,
+            "campus": None,
+            "source_url": "https://admissions.giki.edu.pk",
+            "fetched_at": "2026-07-09T00:00:00Z",
+            "html": "<p>Last date to apply: 10 August 2026.</p>",
+            "pdfs": [],
+        }
+        record.update(overrides)
+        return record
+
+    def test_postgraduate_chunk_excluded_and_counted(self):
+        records = [self._scraped_record()]
+        degree_levels = {"giki": DegreeLevel(value="Postgraduate")}
+
+        built, skipped, excluded_postgraduate = build_extracted_records(records, degree_levels)
+
+        assert built == []
+        assert skipped == 0
+        assert excluded_postgraduate == 1
+
+    def test_undergraduate_chunk_included(self):
+        records = [self._scraped_record()]
+        degree_levels = {"giki": DegreeLevel(value="Undergraduate")}
+
+        built, skipped, excluded_postgraduate = build_extracted_records(records, degree_levels)
+
+        assert len(built) == 1
+        assert built[0][1].degree_level.value == "Undergraduate"
+        assert excluded_postgraduate == 0
+
+    def test_ambiguous_chunk_included_not_treated_as_postgraduate(self):
+        # CLAUDE.md hard rule 5: Ambiguous is a distinct, reviewable outcome,
+        # not the same failure type as Postgraduate -- it must stay in the
+        # output (unlike Postgraduate) so it can be inspected via its reason
+        # code, even though the dashboard hides it from the default view.
+        records = [self._scraped_record()]
+        degree_levels = {"giki": DegreeLevel(value=None, reason="mixed-ug-pg-content")}
+
+        built, skipped, excluded_postgraduate = build_extracted_records(records, degree_levels)
+
+        assert len(built) == 1
+        assert built[0][1].degree_level.value is None
+        assert built[0][1].degree_level.reason == "mixed-ug-pg-content"
+        assert excluded_postgraduate == 0
+
+    def test_mixed_batch_only_excludes_postgraduate(self):
+        records = [
+            self._scraped_record(institution_id="giki"),
+            self._scraped_record(institution_id="nums"),
+            self._scraped_record(institution_id="uhs"),
+        ]
+        degree_levels = {
+            "giki": DegreeLevel(value="Undergraduate"),
+            "nums": DegreeLevel(value="Postgraduate"),
+            "uhs": DegreeLevel(value=None, reason="no-signal"),
+        }
+
+        built, skipped, excluded_postgraduate = build_extracted_records(records, degree_levels)
+
+        built_ids = {chunk_id for chunk_id, _ in built}
+        assert built_ids == {"giki", "uhs"}
+        assert excluded_postgraduate == 1

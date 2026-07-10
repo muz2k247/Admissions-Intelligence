@@ -82,7 +82,7 @@ class TestInstitutions:
         assert resp.status_code == 200
         data = resp.json()
         assert isinstance(data, list)
-        assert len(data) == 15, "expected 15 institutions in the live registry"
+        assert len(data) == 16, "expected 16 institutions in the live registry (UET Taxila split into its own entry)"
 
         for entry in data:
             assert set(entry.keys()) == {"id", "name", "admitting_body", "ug_pg_mixed", "campuses"}
@@ -137,19 +137,24 @@ class TestRecordsWithFixtures:
         ))
         self.tmp_path = tmp_path
 
-    def test_no_filters_returns_all_valid_records(self, client):
+    def test_no_filters_defaults_to_undergraduate_only(self, client):
+        # Project scope is undergrad-only: an absent degree_level param must
+        # not mean "show everything" -- Postgraduate and Ambiguous records
+        # stay hidden unless explicitly requested.
         resp = client.get("/api/records")
         assert resp.status_code == 200
         data = resp.json()
-        assert len(data) == 3
-        assert {r["chunk_id"] for r in data} == {"giki-1", "giki-2", "uet-1"}
+        assert len(data) == 1
+        assert data[0]["chunk_id"] == "giki-1"
 
     def test_filters_by_institution_id(self, client):
+        # institution_id alone still defaults degree_level to Undergraduate,
+        # so only giki-1 (not the Postgraduate giki-2) matches.
         resp = client.get("/api/records", params={"institution_id": "giki"})
         assert resp.status_code == 200
         data = resp.json()
-        assert len(data) == 2
-        assert all(r["institution_id"] == "giki" for r in data)
+        assert len(data) == 1
+        assert data[0]["chunk_id"] == "giki-1"
 
     def test_filters_by_institution_id_no_match(self, client):
         resp = client.get("/api/records", params={"institution_id": "nonexistent"})
@@ -199,7 +204,7 @@ class TestRecordsWithFixtures:
 
         assert resp.status_code == 200
         data = resp.json()
-        assert len(data) == 3
+        assert len(data) == 1  # default Undergraduate-only: just giki-1
         assert "broken" not in {r["chunk_id"] for r in data}
 
     def test_record_missing_required_field_is_skipped_not_fatal(self, client, tmp_path):
@@ -211,7 +216,7 @@ class TestRecordsWithFixtures:
 
         assert resp.status_code == 200
         data = resp.json()
-        assert len(data) == 3  # only the 3 valid fixtures, incomplete one skipped
+        assert len(data) == 1  # default Undergraduate-only: just giki-1, incomplete one skipped
 
     def test_record_with_invalid_field_values_is_skipped_not_fatal(self, client, tmp_path):
         # confidence out of [0, 1] range -> Field.__post_init__ raises ValueError
@@ -225,7 +230,7 @@ class TestRecordsWithFixtures:
 
         assert resp.status_code == 200
         data = resp.json()
-        assert len(data) == 3
+        assert len(data) == 1  # default Undergraduate-only: just giki-1
         assert "bad-confidence" not in {r["chunk_id"] for r in data}
 
     def test_get_record_by_chunk_id_found(self, client):

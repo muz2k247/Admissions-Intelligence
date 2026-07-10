@@ -4,7 +4,7 @@
 A solo-built system that monitors undergraduate admissions across 16 KIPS-target Pakistani institutions (15 distinct admitting portals — see `docs/institution_registry.md`), extracts structured data, and presents it. Cost minimization is a standing constraint: prefer direct APIs, self-hosted scraping, and lighter models over paid SaaS.
 
 ## Current phase scope — read this before building anything
-**In scope right now:** scrape → extract → present (web dashboard + downloadable PDF). Build only this.
+**In scope right now:** scrape → extract → present (web dashboard). Build only this.
 
 **Don't build ahead of scope, and don't guess what comes next.** The roadmap beyond this phase isn't fixed here — treat it as unknown rather than filling in assumptions about what future features will be or how they'll work. If a design choice today would only make sense in service of some imagined future feature, that's a sign to stop and confirm scope instead of proceeding.
 
@@ -53,7 +53,7 @@ Every institution is one or more **sources**; every source has a `campus` field 
 ## Hard rules (non-negotiable)
 1. **Never infer, calculate, or guess a missing field.** If a fee, deadline, or other detail isn't explicitly stated on the source page, the field is `null`. No defaults, no backfilling.
 2. **Field-level confidence, not record-level.** Every extracted field carries its own confidence score. A strong deadline field doesn't excuse a weak fee field.
-3. **UG/PG filtering happens at content level, not URL level.** Many institutions mix undergraduate and postgraduate announcements on the same page. Use the `content-classifier` subagent (see below) — never assume a page's URL tells you the degree level.
+3. **UG/PG filtering happens at content level, not URL level.** Many institutions mix undergraduate and postgraduate announcements on the same page. Use the `content-classifier` subagent (see below) — never assume a page's URL tells you the degree level. **The project is undergrad-only in scope** (as of 2026-07): Postgraduate-classified chunks are excluded from extraction output entirely, not merely hidden by a UI filter — see `extraction/run.py`'s `build_extracted_records`. Ambiguous is not the same failure type as Postgraduate and stays in the output, reviewable via its reason code; the dashboard just doesn't blend it into the default view (it's an explicit opt-in filter, defaulting to Undergraduate-only).
 4. **Every record keeps its source URL.** No exceptions, even for high-confidence extractions.
 5. **A correct answer late beats a wrong answer immediately.** When in doubt, leave it null or route to `Ambiguous` rather than force a value.
 
@@ -133,7 +133,7 @@ config/                institutions.yaml (registry, machine-readable)
 docs/                  institution_registry.md + architecture notes
 scraper/                HTML/PDF fetching, keyed off config/institutions.yaml
 extraction/             field extraction + confidence scoring + content-classifier calls
-dashboard/              web dashboard + PDF export
+dashboard/              web dashboard
 tests/fixtures/<institution>/   saved HTML/PDF for QA — never test against live sites
 .tmp/                   intermediates, never committed
 ```
@@ -141,12 +141,14 @@ tests/fixtures/<institution>/   saved HTML/PDF for QA — never test against liv
 ## Presentation layer (Phase D)
 The dashboard must work flawlessly on both desktop and mobile — not desktop-first with mobile as an afterthought. Mobile-first responsive layout, no horizontal scroll, adaptive navigation by breakpoint, and accessible contrast/touch targets are non-negotiable, not nice-to-haves. If a `ui-ux-pro-max`-style design skill is available in the environment, use it for any UI decision (layout, component, styling, chart) — it already treats mobile+desktop as one system rather than two separate builds.
 
+The dashboard's default view is Undergraduate-only (no PDF export — dropped as unnecessary scope). Ambiguous records are reachable only via an explicit opt-in filter for manual review, never blended into the default view alongside Undergraduate.
+
 ## Commit conventions
 Commit after each phase is functionally complete and passes the code-reviewer/qa loop — not mid-phase. Phases for this stage of the project:
 - Phase A: institution registry (`config/institutions.yaml`, `docs/institution_registry.md`)
 - Phase B: scraper (config-driven, HTML + PDF fallback)
 - Phase C: extraction schema + content-classifier integration
-- Phase D: dashboard + PDF export
+- Phase D: dashboard
 
 Plain, descriptive commit messages tied to the phase (e.g. `feat: config-driven scraper for pilot institutions`) — no need for heavier conventions than that at solo scale.
 

@@ -62,29 +62,43 @@ def run_chunk(scraped_dir: Path, out_path: Path) -> int:
     return 0
 
 
-def run_build(scraped_dir: Path, classified_path: Path, out_dir: Path) -> int:
-    records = _load_scraped_records(scraped_dir)
-    try:
-        degree_levels = load_classifier_results(classified_path)
-    except (json.JSONDecodeError, OSError) as exc:
-        print(f"FAIL  unreadable classifier output {classified_path}: {exc}")
-        return 1
+def build_extracted_records(
+    records: list[dict], degree_levels: dict
+) -> tuple[list[tuple[str, ExtractedRecord]], int, int]:
+    """Merge scraped records with classifier output into ExtractedRecords.
 
-    out_dir.mkdir(parents=True, exist_ok=True)
-    written = 0
+    Returns (list of (chunk_id, record), skipped_count, excluded_postgraduate_count).
+    Builds everything in memory — no disk writes here — so callers can
+    construct the full result set before touching the output directory (see
+    write_extracted_records).
+
+    Postgraduate-classified chunks are dropped here, not merely hidden by the
+    dashboard's default filter: the project is undergrad-only in scope, so
+    there is nothing to gain from persisting PG data. Ambiguous chunks
+    (degree_level.value is None) are kept — CLAUDE.md hard rule 5 treats
+    Ambiguous as a distinct, reviewable outcome, not the same failure type as
+    Postgraduate, and it carries its own reason code for that review."""
+    built: list[tuple[str, ExtractedRecord]] = []
+    skipped = 0
+    excluded_postgraduate = 0
     for record in records:
         if record.get("error"):
+            skipped += 1
             continue
         try:
             chunks = chunk_scraped_record(record)
         except KeyError as exc:
             print(f"SKIP  malformed scraped record (missing {exc}): {record.get('source_url', '?')}")
+            skipped += 1
             continue
 
         for chunk in chunks:
             degree_level = degree_levels.get(
                 chunk.id, DegreeLevel(value=None, reason="no-signal")
             )
+            if degree_level.value == "Postgraduate":
+                excluded_postgraduate += 1
+                continue
             extracted = ExtractedRecord(
                 institution_id=chunk.institution_id,
                 campus=chunk.campus,
@@ -97,11 +111,40 @@ def run_build(scraped_dir: Path, classified_path: Path, out_dir: Path) -> int:
                 fee=extract_fee(chunk.raw_text),
                 programs=extract_programs(chunk.raw_text),
             )
-            out_path = out_dir / f"{chunk.id}.json"
-            out_path.write_text(json.dumps(extracted.to_dict(), indent=2), encoding="utf-8")
-            written += 1
+            built.append((chunk.id, extracted))
+    return built, skipped, excluded_postgraduate
+
+
+def write_extracted_records(built: list[tuple[str, ExtractedRecord]], out_dir: Path) -> int:
+    """Clear stale *.json from out_dir, then write all built records.
+
+    The clear happens only after `built` is fully constructed by the caller,
+    so a mid-build error (e.g. a schema ValueError) never wipes the previous
+    run's good data — and a stale record for an institution whose scrape now
+    fails can never outlive that failure (the bug that served months-old
+    fabricated GIKI data as if it were live)."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for stale in out_dir.glob("*.json"):
+        stale.unlink()
+    for chunk_id, extracted in built:
+        out_path = out_dir / f"{chunk_id}.json"
+        out_path.write_text(json.dumps(extracted.to_dict(), indent=2), encoding="utf-8")
+    return len(built)
+
+
+def run_build(scraped_dir: Path, classified_path: Path, out_dir: Path) -> int:
+    records = _load_scraped_records(scraped_dir)
+    try:
+        degree_levels = load_classifier_results(classified_path)
+    except (json.JSONDecodeError, OSError) as exc:
+        print(f"FAIL  unreadable classifier output {classified_path}: {exc}")
+        return 1
+
+    built, _, excluded_postgraduate = build_extracted_records(records, degree_levels)
+    written = write_extracted_records(built, out_dir)
 
     print(f"Wrote {written} extracted record(s) -> {out_dir}")
+    print(f"Excluded {excluded_postgraduate} postgraduate record(s) (undergrad-only scope)")
     return 0
 
 
