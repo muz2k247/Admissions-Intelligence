@@ -13,12 +13,21 @@ function isSafeUrl(url) {
 }
 
 function FieldRow({ label, field }) {
+  const isLabeledList = Array.isArray(field?.value);
   return (
     <div className="record-card__field">
       <span className="record-card__field-label">{label}</span>
-      <span className="record-card__field-value">
-        {field?.value ?? <span className="record-card__field-empty">Not stated</span>}
-      </span>
+      {isLabeledList ? (
+        <ul className="record-card__field-list">
+          {field.value.map((entry, i) => (
+            <li key={i} className="record-card__field-value">
+              <span className="record-card__field-list-label">{entry.label}:</span> {entry.date}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        field?.value != null && <span className="record-card__field-value">{field.value}</span>
+      )}
       <ConfidenceBadge field={field} />
     </div>
   );
@@ -43,13 +52,9 @@ export default function RecordCard({ record, institutionName, isAdmittingBody })
         <FieldRow label="Fee" field={record.fee} />
         <div className="record-card__field">
           <span className="record-card__field-label">Programs</span>
-          <span className="record-card__field-value">
-            {programs && programs.length > 0 ? (
-              programs.join(", ")
-            ) : (
-              <span className="record-card__field-empty">Not stated</span>
-            )}
-          </span>
+          {programs && programs.length > 0 && (
+            <span className="record-card__field-value">{programs.join(", ")}</span>
+          )}
           <ConfidenceBadge field={record.programs} />
         </div>
         {isAdmittingBody && <FieldRow label="Constituent college" field={record.constituent_college} />}

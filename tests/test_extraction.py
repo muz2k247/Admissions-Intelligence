@@ -264,26 +264,100 @@ class TestExtractDeadlinePrimaryKeywordTiering:
         assert f.confidence == 0.85
         assert f.note is None
 
-    def test_two_primaryless_secondary_conflicts_still_null(self):
-        # Real pattern from NUST: two different entry-test tracks, each
-        # with its own genuinely different "Last Date:" -- neither mention
-        # is a primary/unambiguous keyword, so this must stay a real,
-        # correctly-detected conflict, not get silently resolved.
-        text = (
-            "NET (Series-4) Application Form\nLast Date: 18 Jun 2026\n"
-            "ACT/SAT Basis Application Form\nLast Date: 25 Jul 2026"
-        )
-        f = extract_deadline(text)
-        assert f.value is None
-        assert f.confidence is None
-        assert "conflicting" in f.note.lower()
-
     def test_single_primary_match_ignores_unrelated_secondary_entirely(self):
         text = "Application deadline: 1 January 2027. Some other last date: 5 February 2027 for a different thing."
         f = extract_deadline(text)
         assert f.value is not None
         assert "2027" in f.value
         assert f.confidence == 0.85
+
+
+# ---------------------------------------------------------------------------
+# fields.py — extract_deadline: labeled multi-deadline resolution.
+# When multiple genuinely different deadlines exist (e.g. different entry-
+# test tracks or BS programs), list each against its own page-authored
+# label instead of nulling — but only when that's honestly recoverable,
+# never a guess (see extraction/fields.py's _nearby_label/_MAX_LABELED_*
+# comments). Root-caused against real scraped NUST (genuine, resolvable
+# case) and UHS (schedule-table dump, must NOT resolve) data.
+# ---------------------------------------------------------------------------
+
+class TestExtractDeadlineLabeledMultiResolution:
+    def test_two_labeled_tracks_resolve_to_list_not_null(self):
+        # Real pattern from NUST: two different entry-test tracks, each
+        # with its own genuinely different "Last Date:", each preceded by
+        # a real page heading naming the track.
+        text = (
+            "NUST Entry Test (Series-4) Application Form\nLast Date: 18 Jun 2026\n"
+            "ACT/SAT Basis\nApplication Form\nLast Date: 25 Jul 2026"
+        )
+        f = extract_deadline(text)
+        assert f.value == [
+            {"label": "NUST Entry Test (Series-4) Application Form", "date": "18 Jun 2026"},
+            {"label": "ACT/SAT Basis Application Form", "date": "25 Jul 2026"},
+        ]
+        assert f.confidence == 0.75
+        assert "multiple distinct deadlines" in f.note.lower()
+
+    def test_generic_program_labels_still_generalizes_beyond_nust(self):
+        # Same mechanism must work for any institution, not just NUST --
+        # no per-institution logic exists, so a differently-worded pair of
+        # program headings must resolve the same way.
+        text = (
+            "BS Computer Science\nApplication deadline: 1 August 2026\n"
+            "BS Electrical Engineering\nApplication deadline: 15 August 2026"
+        )
+        f = extract_deadline(text)
+        assert isinstance(f.value, list)
+        assert len(f.value) == 2
+        labels = {entry["label"] for entry in f.value}
+        assert labels == {"BS Computer Science", "BS Electrical Engineering"}
+
+    def test_no_distinguishing_label_stays_null(self):
+        # Two conflicting dates with no usable preceding text at all (label
+        # extraction finds nothing) -- must stay the honest null, not guess.
+        text = "Last date: 10 August 2026. Last date: 15 September 2026."
+        f = extract_deadline(text)
+        assert f.value is None
+        assert "conflicting" in f.note.lower()
+
+    def test_identical_labels_stay_null(self):
+        # Two candidates whose nearby text is identical (can't actually
+        # distinguish them) must not be shown as two suspiciously-identical
+        # "labeled" entries.
+        text = (
+            "Fall 2026 Admissions\nLast date: 10 August 2026.\n"
+            "Fall 2026 Admissions\nLast date: 15 September 2026."
+        )
+        f = extract_deadline(text)
+        assert f.value is None
+        assert "conflicting" in f.note.lower()
+
+    def test_too_many_candidates_stays_null_not_a_schedule_table_dump(self):
+        # Real pattern from UHS: an admissions schedule table with many
+        # different milestone dates (application start, closing, merit
+        # list, across several cycles) -- not "different programs," just
+        # page noise. Must stay null rather than show a long garbled list.
+        text = "\n".join(
+            f"Cycle {i} Online Application Schedule\nLast date: {10 + i} August 2026."
+            for i in range(5)
+        )
+        f = extract_deadline(text)
+        assert f.value is None
+        assert "conflicting" in f.note.lower()
+
+    def test_overlong_label_stays_null(self):
+        # A label recovered from the page can be real text and still be
+        # too long/messy to be a genuine short program heading (real UHS
+        # labels ran 80-140+ chars from concatenated schedule-row text).
+        long_label = "Description Date Online Application State Date 4th February online application processing schedule details"
+        text = (
+            f"{long_label}\nLast date: 10 August 2026.\n"
+            "BS Computer Science\nLast date: 15 September 2026."
+        )
+        f = extract_deadline(text)
+        assert f.value is None
+        assert "conflicting" in f.note.lower()
 
 
 # ---------------------------------------------------------------------------

@@ -299,6 +299,21 @@
   font-style: italic;
 }
 
+.record-card__field-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex-basis: 100%;
+}
+
+.record-card__field-list-label {
+  color: var(--color-text-secondary);
+  font-weight: 600;
+}
+
 .record-card__footer {
   display: flex;
   flex-wrap: wrap;

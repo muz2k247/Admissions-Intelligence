@@ -19,7 +19,13 @@ VALID_DEGREE_LEVELS = {"Undergraduate", "Postgraduate"}
 @dataclass(frozen=True)
 class Field:
     """A single extracted attribute. value=None implies confidence=None —
-    there is nothing to be confident about when nothing was extracted."""
+    there is nothing to be confident about when nothing was extracted.
+
+    value is usually a scalar (str, or list[str] for programs), but
+    extract_deadline can also return a list[{"label": str, "date": str}]
+    when a page genuinely has multiple distinct deadlines (e.g. different
+    entry-test tracks) that are honestly, individually labelable — one
+    Field.confidence still covers the whole extraction, not per-entry."""
 
     value: Any = None
     confidence: float | None = None

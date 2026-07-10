@@ -102,9 +102,12 @@ _PROGRAM_PATTERN = re.compile(
 )
 
 
-def _keyword_anchored_matches(text: str, keywords: list[str], value_pattern: re.Pattern) -> list[str]:
+def _keyword_anchored_matches(text: str, keywords: list[str], value_pattern: re.Pattern) -> list[tuple[str, int]]:
     """Find value_pattern matches that occur within _WINDOW characters after
-    a keyword occurrence. Returns the matched substrings (not normalized).
+    a keyword occurrence. Returns (matched substring, keyword start index)
+    pairs (values not normalized) — the index lets callers recover nearby
+    page text (e.g. _nearby_label) to distinguish genuinely different
+    candidates instead of just nulling on conflict.
 
     Keywords are tried longest-first and a claimed span is not re-matched by
     a shorter keyword contained within it (e.g. "application fee" already
@@ -126,9 +129,47 @@ def _keyword_anchored_matches(text: str, keywords: list[str], value_pattern: re.
             window = text[idx: idx + len(kw) + _WINDOW]
             m = value_pattern.search(window)
             if m:
-                found.append(m.group(0).strip())
+                found.append((m.group(0).strip(), idx))
                 claimed.append((idx, end))
     return found
+
+
+_LABEL_LOOKBACK = 120
+# A genuine multi-track case (e.g. NUST's NET vs ACT/SAT) is realistically a
+# couple of tracks with short, clean headings. A page-wide schedule table
+# (e.g. UHS's application-start/closing/merit-list dates across several
+# admission cycles) produces many more candidates with much longer, messier
+# row-fragment "labels" -- these caps stop that from ever being shown as a
+# labeled list (verified against real scraped data: NUST is 2 candidates,
+# 31-44 char labels; UHS is 7 candidates, 80-140+ char labels). Above either
+# cap, extract_deadline falls through to the existing honest null instead.
+_MAX_LABELED_CANDIDATES = 3
+_MAX_LABEL_LENGTH = 70
+
+
+def _nearby_label(text: str, keyword_idx: int, floor: int = 0) -> str | None:
+    """Recover the page's own heading/context text immediately before a
+    keyword match, to label genuinely different candidates (e.g. which
+    entry-test track a "Last Date" belongs to) instead of guessing which
+    one is "the" deadline. This reads literal source text, not an inferred
+    judgment — same justification as the JS-widget synthesis in chunker.py.
+
+    Looks back up to _LABEL_LOOKBACK chars, never earlier than `floor`
+    (callers pass the previous candidate's keyword index here, so one
+    candidate's label can never swallow an earlier candidate's own heading
+    and date text). Drops a possibly-truncated leading fragment by starting
+    after the first newline within that window (unless the window starts
+    exactly at `floor`/the text start, where there's nothing to truncate),
+    then joins the remaining non-empty lines with a space. Returns None if
+    nothing usable precedes the keyword."""
+    start = max(floor, keyword_idx - _LABEL_LOOKBACK)
+    preceding = text[start:keyword_idx]
+    if start > 0:
+        first_nl = preceding.find("\n")
+        if first_nl != -1:
+            preceding = preceding[first_nl + 1:]
+    label = " ".join(line.strip() for line in preceding.split("\n") if line.strip())
+    return label or None
 
 
 def extract_deadline(text: str) -> Field:
@@ -145,10 +186,50 @@ def extract_deadline(text: str) -> Field:
         matches = _keyword_anchored_matches(text, _DEADLINE_KEYWORDS, _DATE_PATTERN)
     if not matches:
         return NULL_FIELD
-    distinct = {_normalize_date(m) for m in matches}
+    distinct = {_normalize_date(v) for v, _ in matches}
     if len(distinct) == 1:
         confidence = 0.95 if len(matches) > 1 else 0.85
-        return Field(value=matches[0], confidence=confidence)
+        return Field(value=matches[0][0], confidence=confidence)
+
+    # Genuinely different dates. Before nulling, check whether each distinct
+    # date has its own page-authored heading nearby (e.g. which entry-test
+    # track it belongs to) -- if every one does, and the labels actually
+    # distinguish them, list them labeled instead of discarding the
+    # information. If any label is missing, too long, too many candidates
+    # exist, or two labels collide, we genuinely can't tell what's what (or
+    # this looks like a schedule-table dump, not a short program/track
+    # list), so fall through to the honest null below rather than ever show
+    # a partially- or wrongly-labeled list.
+    by_date: dict[str, tuple[str, int]] = {}
+    for value, idx in matches:
+        norm = _normalize_date(value)
+        by_date.setdefault(norm, (value, idx))
+    labeled = []
+    if len(by_date) <= _MAX_LABELED_CANDIDATES:
+        # Sorted by position, each label's lookback is floored at the
+        # previous candidate's own keyword position -- otherwise a later
+        # candidate's label could swallow an earlier candidate's heading
+        # and date text whole when the two sit close together in short
+        # pages (see _nearby_label's floor parameter).
+        ordered = sorted(by_date.values(), key=lambda pair: pair[1])
+        floor = 0
+        for value, idx in ordered:
+            label = _nearby_label(text, idx, floor=floor)
+            floor = idx
+            if not label or len(label) > _MAX_LABEL_LENGTH:
+                labeled = None
+                break
+            labeled.append((label, value))
+    else:
+        labeled = None
+    if labeled is not None:
+        labels = [label for label, _ in labeled]
+        if len(set(labels)) == len(labeled):
+            return Field(
+                value=[{"label": label, "date": date} for label, date in labeled],
+                confidence=0.75,
+                note="multiple distinct deadlines found, one per program/track",
+            )
     return Field(value=None, confidence=None, note="conflicting deadline candidates found — left null rather than guessed")
 
 
@@ -160,10 +241,11 @@ def extract_fee(text: str) -> Field:
         matches = _keyword_anchored_matches(text, _FEE_KEYWORDS, _FEE_PATTERN)
     if not matches:
         return NULL_FIELD
-    distinct = set(matches)
+    values = [v for v, _ in matches]
+    distinct = set(values)
     if len(distinct) == 1:
-        confidence = 0.9 if len(matches) > 1 else 0.8
-        return Field(value=matches[0], confidence=confidence)
+        confidence = 0.9 if len(values) > 1 else 0.8
+        return Field(value=values[0], confidence=confidence)
     return Field(value=None, confidence=None, note="conflicting fee candidates found — left null rather than guessed")
 
 
