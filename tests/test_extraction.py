@@ -207,7 +207,7 @@ class TestExtractDeadline:
     def test_repeated_consistent_deadline_boosts_confidence(self):
         text = (
             "Last date to apply: 10 August 2026. "
-            "Please note the deadline: 10 August 2026 firmly."
+            "Please note the application deadline: 10 August 2026 firmly."
         )
         f = extract_deadline(text)
         assert f.value is not None
@@ -219,9 +219,13 @@ class TestExtractDeadline:
         assert f.confidence == 0.85
 
     def test_conflicting_deadlines_yield_null_field_not_a_guess(self):
+        # Two PRIMARY-keyword mentions with genuinely different dates -- a
+        # real conflict between two equally-authoritative signals, not the
+        # false-conflict-with-an-unrelated-deadline pattern (see
+        # TestExtractDeadlinePrimaryKeywordTiering below).
         text = (
             "Last date to apply: 10 August 2026. "
-            "Deadline: 15 September 2026."
+            "Application deadline: 15 September 2026."
         )
         f = extract_deadline(text)
         assert f.value is None
@@ -233,6 +237,53 @@ class TestExtractDeadline:
         text = "The deadline for something unrelated is announced separately elsewhere on this website with no digits nearby whatsoever, only words."
         f = extract_deadline(text)
         assert f.value is None
+
+
+# ---------------------------------------------------------------------------
+# fields.py — extract_deadline / extract_fee: primary/secondary keyword
+# tiering (fixes false conflicts between the real application deadline/fee
+# and an unrelated same-page deadline/fee, without suppressing genuine
+# conflicts -- root-caused against real scraped GIKI/UET-Taxila/NUST text,
+# see extraction/fields.py's _DEADLINE_KEYWORDS_PRIMARY/_FEE_KEYWORDS_PRIMARY
+# comments)
+# ---------------------------------------------------------------------------
+
+class TestExtractDeadlinePrimaryKeywordTiering:
+    def test_primary_deadline_wins_over_unrelated_secondary_deadline(self):
+        # Real pattern from GIKI: "Application Deadline" (the real one) vs
+        # "Last Date for Receipt of Financial Assistance Documents" (a
+        # different administrative step) -- both match generic "deadline"/
+        # "last date" keywords, but only the first is actually the
+        # application deadline.
+        text = (
+            "Application Deadline\n15-June-2026\n"
+            "Last Date for Receipt of Financial Assistance Documents\n20-June-2026"
+        )
+        f = extract_deadline(text)
+        assert f.value == "15-June-2026"
+        assert f.confidence == 0.85
+        assert f.note is None
+
+    def test_two_primaryless_secondary_conflicts_still_null(self):
+        # Real pattern from NUST: two different entry-test tracks, each
+        # with its own genuinely different "Last Date:" -- neither mention
+        # is a primary/unambiguous keyword, so this must stay a real,
+        # correctly-detected conflict, not get silently resolved.
+        text = (
+            "NET (Series-4) Application Form\nLast Date: 18 Jun 2026\n"
+            "ACT/SAT Basis Application Form\nLast Date: 25 Jul 2026"
+        )
+        f = extract_deadline(text)
+        assert f.value is None
+        assert f.confidence is None
+        assert "conflicting" in f.note.lower()
+
+    def test_single_primary_match_ignores_unrelated_secondary_entirely(self):
+        text = "Application deadline: 1 January 2027. Some other last date: 5 February 2027 for a different thing."
+        f = extract_deadline(text)
+        assert f.value is not None
+        assert "2027" in f.value
+        assert f.confidence == 0.85
 
 
 # ---------------------------------------------------------------------------
@@ -265,10 +316,37 @@ class TestExtractFee:
         assert "conflicting" in f.note.lower()
 
     def test_consistent_repeated_fee_high_confidence(self):
-        text = "Application fee: Rs. 2000/-. Note the fee Rs. 2000/- is non-refundable."
+        text = "Application fee: Rs. 2000/-. Note the processing fee Rs. 2000/- is non-refundable."
         f = extract_fee(text)
         assert f.value is not None
         assert f.confidence == 0.9
+
+
+# ---------------------------------------------------------------------------
+# fields.py — extract_fee: primary/secondary keyword tiering
+# ---------------------------------------------------------------------------
+
+class TestExtractFeePrimaryKeywordTiering:
+    def test_primary_fee_wins_over_unrelated_secondary_fee(self):
+        # Real pattern from UET Taxila: "Admission Application Processing
+        # Fee" (the real application fee) vs "TCAT Registration Fee" (the
+        # entry-test fee, a different thing) -- only the bare "fee" keyword
+        # links the second one, and it shouldn't count as a conflict.
+        text = (
+            "Admission Application Processing Fee: Rs. 4,000/- (Non-Refundable)\n"
+            "TCAT Registration Fee: Rs. 3,000/- (Non-Refundable)"
+        )
+        f = extract_fee(text)
+        assert f.value == "Rs. 4,000/-"
+        assert f.confidence == 0.8
+        assert f.note is None
+
+    def test_two_primaryless_secondary_fee_conflicts_still_null(self):
+        text = "Hostel fee: Rs. 5,000/-. Semester fee: Rs. 60,000/-."
+        f = extract_fee(text)
+        assert f.value is None
+        assert f.confidence is None
+        assert "conflicting" in f.note.lower()
 
 
 # ---------------------------------------------------------------------------
