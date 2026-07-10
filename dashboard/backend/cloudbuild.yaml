@@ -31,29 +31,21 @@ steps:
       - 'gcr.io/$PROJECT_ID/${_CLOUD_RUN_SERVICE}:$SHORT_SHA'
 
   # Step 3: Deploy to Cloud Run
-  - name: 'gcr.io/cloud-builders/gke-deploy'
+  # (gke-deploy is a GKE-targeted builder, not valid for Cloud Run -- use the
+  # standard gcloud builder with `run deploy` instead)
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'deploy'
+    entrypoint: 'gcloud'
     args:
       - 'run'
-      - '--filename=.'
+      - 'deploy'
+      - '${_CLOUD_RUN_SERVICE}'
       - '--image=gcr.io/$PROJECT_ID/${_CLOUD_RUN_SERVICE}:$SHORT_SHA'
-      - '--location=${_CLOUD_RUN_REGION}'
-      - '--namespace=default'
-    env:
-      - 'CLOUDSDK_COMPUTE_REGION=${_CLOUD_RUN_REGION}'
-
-  # Alternative: Use gcloud run deploy (simpler)
-  # - name: 'gcr.io/cloud-builders/gke-deploy'
-  #   args:
-  #     - 'run'
-  #     - 'deploy'
-  #     - '${_CLOUD_RUN_SERVICE}'
-  #     - '--image=gcr.io/$PROJECT_ID/${_CLOUD_RUN_SERVICE}:$SHORT_SHA'
-  #     - '--platform=managed'
-  #     - '--region=${_CLOUD_RUN_REGION}'
-  #     - '--set-env-vars=FIREBASE_PROJECT_ID=${_FIREBASE_PROJECT_ID}'
-  #     - '--set-secrets=FIREBASE_SERVICE_ACCOUNT_KEY_JSON=FIREBASE_SERVICE_ACCOUNT_KEY_JSON:latest'
-  #     - '--allow-unauthenticated'
+      - '--platform=managed'
+      - '--region=${_CLOUD_RUN_REGION}'
+      - '--set-env-vars=FIREBASE_PROJECT_ID=${_FIREBASE_PROJECT_ID}'
+      - '--set-secrets=FIREBASE_SERVICE_ACCOUNT_KEY_JSON=FIREBASE_SERVICE_ACCOUNT_KEY_JSON:latest'
+      - '--allow-unauthenticated'
 
 images:
   - 'gcr.io/$PROJECT_ID/${_CLOUD_RUN_SERVICE}:$SHORT_SHA'
@@ -64,9 +56,10 @@ substitutions:
   _CLOUD_RUN_REGION: 'us-central1'
   _FIREBASE_PROJECT_ID: 'admissions-intelligence-2fc32'
 
-# Only run on main branch
-onPush:
-  branch: '^main$'
+# NOTE: trigger this build via a Cloud Build Trigger resource configured in
+# Google Cloud Console (Cloud Build > Triggers), pointed at this repo's main
+# branch -- `onPush:` is not a valid top-level cloudbuild.yaml key, triggers
+# are external resources, not declared inline here.
 
 timeout: '1800s'
 options:

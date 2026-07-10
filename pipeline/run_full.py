@@ -1,11 +1,12 @@
-"""Full pipeline orchestration: scraper → chunking → classification → extraction.
+"""Full pipeline orchestration: scraper → chunking → classification → extraction → Firestore sync.
 
-Stages 1, 2, 4 run here (deterministic Python). Stage 3 (classifier) is invoked
+Stages 1, 2, 4, 5 run here (deterministic Python). Stage 3 (classifier) is invoked
 separately by the calling orchestration prompt via Claude Code Agent.
 
 Usage:
     Stage 1-2: python -m pipeline.run_full stage1_2 --out-scraped .tmp/scraped --out-chunks .tmp/chunks/chunks.json
     Stage 4:   python -m pipeline.run_full stage4 --out-scraped .tmp/scraped --classified .tmp/chunks/classified.json --out .tmp/extracted
+    Stage 5:   python -m pipeline.run_full stage5 --extracted .tmp/extracted
 
 Returns:
     Exit code 0 if all stages succeed. Exit code 1 if any stage fails.
@@ -15,13 +16,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
+from dashboard.backend.firestore_adapter import delete_collection, write_record_to_firestore
 from extraction.chunker import chunk_scraped_record
 from extraction.classify import load_classifier_results
-from extraction.fields import extract_constituent_college, extract_deadline, extract_fee, extract_programs
-from extraction.schema import DegreeLevel, ExtractedRecord
+from extraction.run import build_extracted_records, write_extracted_records
+from extraction.schema import ExtractedRecord
 from scraper.config import load_institutions, iter_sources
 from scraper.fetch import build_session, fetch_source
 
@@ -56,6 +59,15 @@ def stage_1_scrape(out_dir: Path, institution_filter: str | None = None) -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
     institutions = load_institutions()
     session = build_session()
+
+    # On a full run, clear stale scraped files first: a source renamed or
+    # removed in config (e.g. UET's Taxila campus becoming its own institution)
+    # would otherwise leave an orphan JSON here that later stages treat as a
+    # live source. Skip this when filtering to a single institution for debug,
+    # so other institutions' scraped data isn't wiped.
+    if institution_filter is None:
+        for stale in out_dir.glob("*.json"):
+            stale.unlink()
 
     exit_code = 0
     ok_count = 0
@@ -166,40 +178,13 @@ def stage_4_build(scraped_dir: Path, classified_path: Path, out_dir: Path) -> in
         print(f"ERROR: Invalid classifier output {classified_path}: {exc}", file=sys.stderr)
         return 1
 
-    out_dir.mkdir(parents=True, exist_ok=True)
-    written = 0
-    skipped = 0
+    built, skipped, excluded_postgraduate = build_extracted_records(records, degree_levels)
+    written = write_extracted_records(built, out_dir)
 
-    for record in records:
-        if record.get("error"):
-            skipped += 1
-            continue
-        try:
-            chunks = chunk_scraped_record(record)
-        except KeyError as exc:
-            print(f"SKIP  malformed scraped record (missing {exc}): {record.get('source_url', '?')}")
-            skipped += 1
-            continue
-
-        for chunk in chunks:
-            degree_level = degree_levels.get(chunk.id, DegreeLevel(value=None, reason="no-signal"))
-            extracted = ExtractedRecord(
-                institution_id=chunk.institution_id,
-                campus=chunk.campus,
-                source_url=chunk.source_url,
-                fetched_at=chunk.fetched_at,
-                chunk_id=chunk.id,
-                degree_level=degree_level,
-                constituent_college=extract_constituent_college(chunk.raw_text),
-                deadline=extract_deadline(chunk.raw_text),
-                fee=extract_fee(chunk.raw_text),
-                programs=extract_programs(chunk.raw_text),
-            )
-            out_path = out_dir / f"{chunk.id}.json"
-            out_path.write_text(json.dumps(extracted.to_dict(), indent=2), encoding="utf-8")
-            written += 1
-
-    print(f"Stage 4 summary: {written} record(s) extracted, {skipped} skipped")
+    print(
+        f"Stage 4 summary: {written} record(s) extracted, {skipped} skipped, "
+        f"{excluded_postgraduate} postgraduate record(s) excluded (undergrad-only scope)"
+    )
     if written == 0:
         print("[WARN] No records extracted.")
         return 1
@@ -207,8 +192,59 @@ def stage_4_build(scraped_dir: Path, classified_path: Path, out_dir: Path) -> in
     return 0
 
 
+def stage_5_sync(extracted_dir: Path) -> int:
+    """Stage 5: Push stage 4's extracted records to Firestore.
+
+    No-ops (exit 0) when FIREBASE_PROJECT_ID isn't set — local dev/testing
+    never needs Firestore, only a deployed backend does. Records are loaded
+    from `extracted_dir` into memory first; only once that succeeds does this
+    clear the collection and write the new batch, so a read failure never
+    wipes Firestore's last-good data (same "build fully in memory before
+    touching the destination" pattern as write_extracted_records).
+
+    Returns:
+        0 if sync succeeds or is skipped (Firestore not configured).
+        1 if extracted_dir is unreadable, or any record fails to load/write.
+    """
+    print(f"\n{'='*60}")
+    print("STAGE 5: FIRESTORE SYNC")
+    print(f"{'='*60}")
+
+    if not os.environ.get("FIREBASE_PROJECT_ID"):
+        print("[SKIP] FIREBASE_PROJECT_ID not set; local file storage only.")
+        return 0
+
+    if not extracted_dir.is_dir():
+        print(f"ERROR: Extracted records dir not found: {extracted_dir}", file=sys.stderr)
+        return 1
+
+    records: list[ExtractedRecord] = []
+    for path in sorted(extracted_dir.glob("*.json")):
+        try:
+            with path.open("r", encoding="utf-8") as f:
+                records.append(ExtractedRecord.from_dict(json.load(f)))
+        except (json.JSONDecodeError, OSError, KeyError, ValueError) as exc:
+            print(f"ERROR: Unreadable extracted record {path}: {exc}", file=sys.stderr)
+            return 1
+
+    if not delete_collection():
+        print("ERROR: Failed to clear stale Firestore collection.", file=sys.stderr)
+        return 1
+
+    written = 0
+    for record in records:
+        if write_record_to_firestore(record):
+            written += 1
+        else:
+            print(f"ERROR: Failed to write record {record.chunk_id} to Firestore.", file=sys.stderr)
+            return 1
+
+    print(f"Stage 5 summary: {written} record(s) synced to Firestore")
+    return 0
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Pipeline orchestration: stages 1, 2, 4 (3 is external).")
+    parser = argparse.ArgumentParser(description="Pipeline orchestration: stages 1, 2, 4, 5 (3 is external).")
     sub = parser.add_subparsers(dest="stage", required=True)
 
     stage1_p = sub.add_parser("stage1_2", help="Run scraper (stage 1) and chunking (stage 2).")
@@ -221,6 +257,9 @@ def main() -> None:
     stage4_p.add_argument("--classified", type=Path, required=True, help="Classifier output file.")
     stage4_p.add_argument("--out", type=Path, default=DEFAULT_EXTRACTED_OUT, help="Output dir for extracted records.")
 
+    stage5_p = sub.add_parser("stage5", help="Sync extracted records to Firestore (stage 5).")
+    stage5_p.add_argument("--extracted", type=Path, default=DEFAULT_EXTRACTED_OUT, help="Extracted records dir.")
+
     args = parser.parse_args()
 
     if args.stage == "stage1_2":
@@ -231,6 +270,8 @@ def main() -> None:
         sys.exit(stage2_exit)
     elif args.stage == "stage4":
         sys.exit(stage_4_build(args.out_scraped, args.classified, args.out))
+    elif args.stage == "stage5":
+        sys.exit(stage_5_sync(args.extracted))
 
 
 if __name__ == "__main__":

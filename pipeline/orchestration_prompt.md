@@ -1,23 +1,25 @@
 # Admissions Intelligence Pipeline Orchestration Prompt
 
-**Context**: This prompt is designed to be run as a scheduled cloud job (via CronCreate/schedule). It orchestrates all four pipeline stages end-to-end:
+**Context**: This prompt is designed to be run as a scheduled cloud job (via CronCreate/schedule). It orchestrates all five pipeline stages end-to-end:
 1. **Stage 1**: Scrape institutions
 2. **Stage 2**: Chunk for classification
 3. **Stage 3**: Content-classifier (Claude agent)
-4. **Stage 4**: Extract and build final records
+4. **Stage 4**: Extract and build final records (undergrad-only — Postgraduate-classified chunks are excluded here, not just hidden downstream)
+5. **Stage 5**: Sync extracted records to Firestore (no-op if `FIREBASE_PROJECT_ID` isn't set — local dev stays file-based)
 
-The dashboard backend reads from `.tmp/extracted/` and serves results via `/api/records`.
+The dashboard backend reads from Firestore when `FIREBASE_PROJECT_ID` is configured (production), falling back to `.tmp/extracted/` locally, and serves results via `/api/records`.
 
 ---
 
 ## Instructions
 
 ### Overview
-You are orchestrating a data pipeline with four stages. Your job is to:
+You are orchestrating a data pipeline with five stages. Your job is to:
 1. Run stages 1-2 (scraper + chunking)
 2. Spawn the content-classifier agent to handle stage 3
 3. Run stage 4 (extraction build) once classifier is done
-4. Report final results
+4. Run stage 5 (Firestore sync) so the deployed dashboard actually serves the new data
+5. Report final results
 
 **Key principle**: Fail gracefully. If any stage errors, log it clearly and stop — do NOT proceed to later stages.
 
@@ -94,9 +96,29 @@ python -m pipeline.run_full stage4 --out-scraped .tmp/scraped --classified .tmp/
 - If no records extracted: Script exits 1. **STOP** and report "No records extracted."
 - If partial extraction (some records fail, others succeed): Script exits 0 with warnings. **PROCEED**.
 
+**Note:** Postgraduate-classified chunks are excluded from `.tmp/extracted/` entirely at this stage (undergrad-only project scope) — the stage 4 summary line reports how many were excluded. This is expected, not a failure.
+
 ---
 
-### Step 4: Verify Data Integrity
+### Step 4: Run Stage 5 (Firestore Sync)
+
+Push the newly built extracted records to Firestore so the deployed dashboard (Cloud Run + Firebase Hosting) actually serves them — without this step, a correct local extraction never reaches production:
+
+```bash
+python -m pipeline.run_full stage5 --extracted .tmp/extracted
+```
+
+**Expected behavior:**
+- If `FIREBASE_PROJECT_ID` is not set in the environment: exits 0 immediately, no-op. This is normal for local/dev runs.
+- If set: clears the `extracted_records` Firestore collection and writes the new batch, only after all local records have been read successfully (so a read failure never wipes Firestore's last-good data).
+
+**Error handling:**
+- If `.tmp/extracted/` is missing or contains an unreadable record: Script exits 1 before touching Firestore. **STOP** and report the error; Firestore's previous data is untouched.
+- If the Firestore delete or a write fails: Script exits 1. **STOP** and report the error.
+
+---
+
+### Step 5: Verify Data Integrity
 
 Once extraction build completes, verify the output is valid for the dashboard:
 
@@ -117,7 +139,7 @@ If any check fails: **ABORT** and report the specific failure.
 
 ---
 
-### Step 5: Report Results
+### Step 6: Report Results
 
 Report the final status to the user:
 
@@ -128,7 +150,8 @@ Stages executed:
   1. Scraper: [N] sources processed
   2. Chunking: [M] chunks produced
   3. Classification: [K] classified
-  4. Extraction: [P] records extracted
+  4. Extraction: [P] records extracted ([Q] postgraduate excluded)
+  5. Firestore sync: [R] records synced (or skipped — not configured)
 
 Data is ready at: http://localhost:8000/api/records
 Dashboard: http://localhost:5173
@@ -161,6 +184,8 @@ Next attempt: [Next scheduled time]
 | Extraction build fails | Stop; report error. Previous data retained. |
 | No records extracted | Stop; report "No records produced." Previous data retained. |
 | Partial extraction (some records fail) | Continue; warn user. Some records extracted. |
+| Firestore sync fails (read or write error) | Stop; report error. Firestore's previous data untouched. |
+| `FIREBASE_PROJECT_ID` not set | Skip sync silently (expected for local/dev runs). |
 
 ---
 
@@ -180,9 +205,10 @@ Next attempt: [Next scheduled time]
 .tmp/scraped/                     ← Stage 1 output (raw HTML)
 .tmp/chunks/chunks.json           ← Stage 2 output (chunk array)
 .tmp/chunks/classified.json       ← Stage 3 output (classifier results)
-.tmp/extracted/                   ← Stage 4 output (final ExtractedRecords)
+.tmp/extracted/                   ← Stage 4 output (final ExtractedRecords, undergrad-only)
+Firestore `extracted_records`     ← Stage 5 output (production data source)
 
-Backend reads from: .tmp/extracted/
+Backend reads from: Firestore (if FIREBASE_PROJECT_ID set) else .tmp/extracted/
 Dashboard serves: http://localhost:5173
 API: http://localhost:8000/api/records
 ```
