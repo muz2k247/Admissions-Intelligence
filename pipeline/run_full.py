@@ -1,4 +1,4 @@
-"""Full pipeline orchestration: scraper → chunking → classification → extraction → Firestore sync.
+"""Full pipeline orchestration: scraper → chunking → classification → extraction → static publish.
 
 Stages 1, 2, 4, 5 run here (deterministic Python). Stage 3 (classifier) is invoked
 separately by the calling orchestration prompt via Claude Code Agent.
@@ -20,7 +20,6 @@ import os
 import sys
 from pathlib import Path
 
-from dashboard.backend.firestore_adapter import delete_collection, write_record_to_firestore
 from extraction.chunker import chunk_scraped_record
 from extraction.classify import load_classifier_results
 from extraction.run import build_extracted_records, write_extracted_records
@@ -31,6 +30,7 @@ from scraper.fetch import build_session, fetch_source
 DEFAULT_SCRAPED_DIR = Path(".tmp") / "scraped"
 DEFAULT_CHUNKS_OUT = Path(".tmp") / "chunks" / "chunks.json"
 DEFAULT_EXTRACTED_OUT = Path(".tmp") / "extracted"
+DEFAULT_PUBLISH_DIR = Path("dashboard") / "frontend" / "public" / "data"
 
 
 def _load_scraped_records(scraped_dir: Path) -> list[dict]:
@@ -192,27 +192,67 @@ def stage_4_build(scraped_dir: Path, classified_path: Path, out_dir: Path) -> in
     return 0
 
 
-def stage_5_sync(extracted_dir: Path) -> int:
-    """Stage 5: Push stage 4's extracted records to Firestore.
+def _institutions_payload() -> list[dict]:
+    institutions = load_institutions()
+    return [
+        {
+            "id": inst.id,
+            "name": inst.name,
+            "admitting_body": inst.admitting_body,
+            "ug_pg_mixed": inst.ug_pg_mixed,
+            "campuses": [s.campus for s in inst.sources if s.campus is not None],
+        }
+        for inst in institutions
+    ]
 
-    No-ops (exit 0) when FIREBASE_PROJECT_ID isn't set — local dev/testing
-    never needs Firestore, only a deployed backend does. Records are loaded
-    from `extracted_dir` into memory first; only once that succeeds does this
-    clear the collection and write the new batch, so a read failure never
-    wipes Firestore's last-good data (same "build fully in memory before
-    touching the destination" pattern as write_extracted_records).
+
+def _write_json_files_atomic(files: dict[Path, object]) -> None:
+    """Write every (path -> payload) pair to a PID-scoped temp sibling first;
+    only once ALL temp writes succeed are they os.replace()'d into place.
+
+    This publishes records.json and institutions.json as one unit: if a
+    later file's write fails after an earlier file's temp write already
+    succeeded, nothing has been replaced yet, so neither previously-published
+    file is touched -- avoiding a mismatched pair (e.g. new records.json
+    paired with stale institutions.json). The PID-scoped temp name also
+    avoids two overlapping pipeline runs racing on the same temp path.
+    Raises OSError on failure; caller decides how to report it.
+    """
+    tmp_paths: dict[Path, Path] = {}
+    try:
+        for path, payload in files.items():
+            tmp_path = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+            tmp_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            tmp_paths[path] = tmp_path
+    except OSError:
+        for tmp_path in tmp_paths.values():
+            tmp_path.unlink(missing_ok=True)
+        raise
+    for path, tmp_path in tmp_paths.items():
+        os.replace(tmp_path, path)
+
+
+def stage_5_publish(extracted_dir: Path, publish_dir: Path) -> int:
+    """Stage 5: Build the static data/*.json artifacts the dashboard fetches
+    directly (no backend, no database).
+
+    Records are loaded from `extracted_dir` into memory first; only once that
+    succeeds — and only if at least one record was found — are the output
+    files written, so neither a read failure nor an empty/wrong extracted_dir
+    can corrupt or blank out the previously-published (live) artifacts (same
+    "build fully in memory before touching the destination" pattern as
+    write_extracted_records, extended here to guard zero-output the same way
+    stage_2_chunk/stage_4_build already do).
 
     Returns:
-        0 if sync succeeds or is skipped (Firestore not configured).
-        1 if extracted_dir is unreadable, or any record fails to load/write.
+        0 if publish succeeds.
+        1 if extracted_dir is unreadable/missing, contains zero records,
+          any record fails to load, config/institutions.yaml is unreadable,
+          or writing the published files fails.
     """
     print(f"\n{'='*60}")
-    print("STAGE 5: FIRESTORE SYNC")
+    print("STAGE 5: BUILD & PUBLISH STATIC DATA")
     print(f"{'='*60}")
-
-    if not os.environ.get("FIREBASE_PROJECT_ID"):
-        print("[SKIP] FIREBASE_PROJECT_ID not set; local file storage only.")
-        return 0
 
     if not extracted_dir.is_dir():
         print(f"ERROR: Extracted records dir not found: {extracted_dir}", file=sys.stderr)
@@ -227,19 +267,34 @@ def stage_5_sync(extracted_dir: Path) -> int:
             print(f"ERROR: Unreadable extracted record {path}: {exc}", file=sys.stderr)
             return 1
 
-    if not delete_collection():
-        print("ERROR: Failed to clear stale Firestore collection.", file=sys.stderr)
+    if not records:
+        print(
+            f"ERROR: No records found in {extracted_dir}; refusing to publish "
+            "and overwrite previously-published data. Previous data retained.",
+            file=sys.stderr,
+        )
         return 1
 
-    written = 0
-    for record in records:
-        if write_record_to_firestore(record):
-            written += 1
-        else:
-            print(f"ERROR: Failed to write record {record.chunk_id} to Firestore.", file=sys.stderr)
-            return 1
+    try:
+        institutions_payload = _institutions_payload()
+    except (OSError, KeyError, ValueError) as exc:
+        print(f"ERROR: config/institutions.yaml is unreadable: {exc}", file=sys.stderr)
+        return 1
 
-    print(f"Stage 5 summary: {written} record(s) synced to Firestore")
+    publish_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        _write_json_files_atomic({
+            publish_dir / "records.json": [r.to_dict() for r in records],
+            publish_dir / "institutions.json": institutions_payload,
+        })
+    except OSError as exc:
+        print(f"ERROR: Failed to write published data: {exc}", file=sys.stderr)
+        return 1
+
+    print(
+        f"Stage 5 summary: {len(records)} record(s) and {len(institutions_payload)} "
+        f"institution(s) published to {publish_dir}"
+    )
     return 0
 
 
@@ -257,8 +312,12 @@ def main() -> None:
     stage4_p.add_argument("--classified", type=Path, required=True, help="Classifier output file.")
     stage4_p.add_argument("--out", type=Path, default=DEFAULT_EXTRACTED_OUT, help="Output dir for extracted records.")
 
-    stage5_p = sub.add_parser("stage5", help="Sync extracted records to Firestore (stage 5).")
+    stage5_p = sub.add_parser("stage5", help="Build static dashboard data/*.json artifacts (stage 5).")
     stage5_p.add_argument("--extracted", type=Path, default=DEFAULT_EXTRACTED_OUT, help="Extracted records dir.")
+    stage5_p.add_argument(
+        "--publish-dir", type=Path, default=DEFAULT_PUBLISH_DIR,
+        help="Output dir for published data/*.json (served as static dashboard data).",
+    )
 
     args = parser.parse_args()
 
@@ -271,7 +330,7 @@ def main() -> None:
     elif args.stage == "stage4":
         sys.exit(stage_4_build(args.out_scraped, args.classified, args.out))
     elif args.stage == "stage5":
-        sys.exit(stage_5_sync(args.extracted))
+        sys.exit(stage_5_publish(args.extracted, args.publish_dir))
 
 
 if __name__ == "__main__":

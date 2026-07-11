@@ -8,3 +8,4 @@ credentials.json
 token.json
 node_modules/
 .firebase/
+dashboard/frontend/public/data/
