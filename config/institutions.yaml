@@ -34,11 +34,17 @@ institutions:
         format: html
         verified: true
         note: "CORRECTED: canonical portal is admission.uet.edu.pk (singular). apply.uet.edu.pk also resolves/mirrors. Lahore's KSK/Narowal/Rachna(Faisalabad) sub-campuses are handled within this same portal (campus selected in-application) — they are NOT separate URLs. Site mixes BE/BS with MS/PhD."
-      - campus: "Taxila"
+
+  - id: uet_taxila
+    name: University of Engineering & Technology, Taxila
+    admitting_body: false
+    ug_pg_mixed: true
+    sources:
+      - campus: null
         url: "https://admissions.uettaxila.edu.pk"
         format: html
         verified: true
-        note: "UET Taxila is a separate chartered university with its own portal — genuinely distinct source, not a sub-campus of UET Lahore."
+        note: "Separate chartered university (not a sub-campus of UET Lahore). Single unified portal."
 
   - id: nust
     name: National University of Sciences & Technology
@@ -57,10 +63,10 @@ institutions:
     ug_pg_mixed: false
     sources:
       - campus: null
-        url: "https://admissions.giki.edu.pk"
+        url: "https://giki.edu.pk/admissions/admissions-undergraduates/"
         format: html
         verified: true
-        note: "UG-only portal (single campus, Topi). Graduate admissions on separate portal (gikadmissions.giki.edu.pk). Clean UG/PG URL split."
+        note: "CORRECTED URL: the actual UG admissions page with the Important Dates table (application deadline, admission test, merit list) is giki.edu.pk/admissions/admissions-undergraduates/ — the old admissions.giki.edu.pk was a thin ~15KB portal shell without the dates. Single campus (Topi). Graduate admissions separate (gikadmissions.giki.edu.pk). NOTE: giki.edu.pk serves an incomplete TLS chain (leaf only, no intermediate) — scraper.tls completes it via AIA."
 
   - id: pieas
     name: Pakistan Institute of Engineering and Applied Sciences

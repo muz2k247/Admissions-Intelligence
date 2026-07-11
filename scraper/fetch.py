@@ -7,11 +7,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from urllib.parse import urlsplit
 
 import requests
 
 from scraper.config import Source
 from scraper.pdf_fallback import PdfDocument, fetch_linked_pdfs
+from scraper.tls import build_completed_bundle
 
 USER_AGENT = "AdmissionsIntelligenceBot/0.1 (+https://github.com/muz2k247/Admissions-Intelligence)"
 DEFAULT_TIMEOUT = 30
@@ -42,13 +44,55 @@ def build_session() -> requests.Session:
     return session
 
 
+def _fetch_with_aia_recovery(
+    source: Source, session: requests.Session, timeout: int
+) -> tuple[requests.Response, str] | None:
+    """Retry source.url once against an AIA-completed CA bundle. Returns the
+    successful Response paired with the bundle path (so the caller can reuse
+    it for same-host PDF fallback fetches too), or None if the chain
+    couldn't be completed or the retry still failed (caller then reports the
+    SSL failure)."""
+    parts = urlsplit(source.url)
+    host = parts.hostname
+    if not host:
+        return None
+    bundle = build_completed_bundle(host, session, port=parts.port or 443, timeout=timeout)
+    if bundle is None:
+        return None
+    try:
+        resp = session.get(source.url, timeout=timeout, verify=bundle)
+        resp.raise_for_status()
+        return resp, bundle
+    except requests.RequestException:
+        return None
+
+
 def fetch_source(source: Source, session: requests.Session | None = None, timeout: int = DEFAULT_TIMEOUT) -> FetchResult:
     session = session or build_session()
     fetched_at = datetime.now(timezone.utc).isoformat()
+    aia_bundle: str | None = None
 
     try:
         resp = session.get(source.url, timeout=timeout)
         resp.raise_for_status()
+    except requests.exceptions.SSLError:
+        # The server may be misconfigured to omit its intermediate CA (a chain
+        # a browser completes via AIA, but Python does not). Try to complete
+        # the chain and verify against it — still a real trust decision, not a
+        # verify=False bypass. If recovery isn't possible, report the original
+        # failure below rather than silently trusting an unverifiable cert.
+        recovered = _fetch_with_aia_recovery(source, session, timeout)
+        if recovered is not None:
+            resp, aia_bundle = recovered
+        else:
+            return FetchResult(
+                institution_id=source.institution_id,
+                campus=source.campus,
+                source_url=source.url,
+                fetched_at=fetched_at,
+                html=None,
+                error="fetch failed: SSL verification failed and automatic chain recovery was unsuccessful",
+            )
     except requests.RequestException as exc:
         return FetchResult(
             institution_id=source.institution_id,
@@ -62,7 +106,11 @@ def fetch_source(source: Source, session: requests.Session | None = None, timeou
     html = resp.text
     pdfs: list[PdfDocument] = []
     if source.has_pdf_fallback:
-        pdfs = fetch_linked_pdfs(html, source.url, session)
+        # Reuse the AIA-completed bundle (a superset of certifi's roots plus
+        # the fetched intermediate) for same-host PDF links too, so a host
+        # with an incomplete chain doesn't recover its HTML page but then
+        # fail every linked PDF for the identical reason.
+        pdfs = fetch_linked_pdfs(html, source.url, session, verify=aia_bundle or True)
 
     return FetchResult(
         institution_id=source.institution_id,

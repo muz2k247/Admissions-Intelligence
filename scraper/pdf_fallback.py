@@ -44,9 +44,11 @@ def find_pdf_links(html: str, base_url: str) -> list[str]:
     return deduped
 
 
-def fetch_pdf_text(url: str, session: requests.Session, timeout: int = 30) -> PdfDocument:
+def fetch_pdf_text(
+    url: str, session: requests.Session, timeout: int = 30, verify: bool | str = True
+) -> PdfDocument:
     try:
-        resp = session.get(url, timeout=timeout)
+        resp = session.get(url, timeout=timeout, verify=verify)
         resp.raise_for_status()
     except requests.RequestException as exc:
         return PdfDocument(url=url, text=None, error=f"fetch failed: {exc}")
@@ -60,5 +62,9 @@ def fetch_pdf_text(url: str, session: requests.Session, timeout: int = 30) -> Pd
         return PdfDocument(url=url, text=None, error=f"extraction failed: {exc}")
 
 
-def fetch_linked_pdfs(html: str, base_url: str, session: requests.Session) -> list[PdfDocument]:
-    return [fetch_pdf_text(link, session) for link in find_pdf_links(html, base_url)]
+def fetch_linked_pdfs(
+    html: str, base_url: str, session: requests.Session, verify: bool | str = True
+) -> list[PdfDocument]:
+    return [
+        fetch_pdf_text(link, session, verify=verify) for link in find_pdf_links(html, base_url)
+    ]

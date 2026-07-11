@@ -63,7 +63,7 @@ class FakeSession:
 class TestConfig:
     def test_load_real_registry_counts(self):
         institutions = load_institutions(DEFAULT_CONFIG_PATH)
-        assert len(institutions) == 15, "expected 15 institutions in the live registry"
+        assert len(institutions) == 16, "expected 16 institutions in the live registry (UET Taxila is a separate chartered university, not a UET Lahore campus)"
 
         total_sources = sum(len(inst.sources) for inst in institutions)
         assert total_sources == 17, "expected 17 total sources (some institutions multi-campus)"
