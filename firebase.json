@@ -1,7 +1,4 @@
 {
-  "projects": {
-    "default": "admissions-intelligence-2fc32"
-  },
   "hosting": {
     "public": "dashboard/frontend/dist",
     "ignore": [
