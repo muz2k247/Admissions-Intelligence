@@ -1,4 +1,8 @@
-/* Design tokens. Semantic, not raw hex in components (ui-ux-pro-max: color-semantic). */
+/* Design tokens. Semantic, not raw hex in components (ui-ux-pro-max: color-semantic).
+ * Theme resolution order: light values below are the default, the
+ * prefers-color-scheme query applies dark values when the OS asks for it,
+ * and [data-theme] on <html> (set by ThemeToggle) always wins over both —
+ * so a manual light/dark choice overrides the OS setting. */
 :root {
   --color-primary: #1e3a5f;
   --color-primary-hover: #16304e;
@@ -51,6 +55,9 @@
   --duration-base: 250ms;
   --easing-out: cubic-bezier(0.16, 1, 0.3, 1);
 
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --shadow-card-hover: 0 4px 12px rgba(15, 23, 42, 0.1);
+
   --z-nav: 100;
   --z-drawer: 200;
 
@@ -61,7 +68,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --color-primary: #5b8ac6;
     --color-primary-hover: #7aa3d6;
     --color-primary-fg: #0b1220;
@@ -88,7 +95,48 @@
     --color-ug-bg: #10203f;
     --color-pg: #d8a9ff;
     --color-pg-bg: #241333;
+
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-card-hover: 0 4px 16px rgba(0, 0, 0, 0.4);
   }
+}
+
+:root[data-theme="dark"] {
+  --color-primary: #5b8ac6;
+  --color-primary-hover: #7aa3d6;
+  --color-primary-fg: #0b1220;
+
+  --color-bg: #0b1220;
+  --color-surface: #131c2e;
+  --color-surface-hover: #1a2540;
+  --color-border: #263352;
+
+  --color-text: #e6edf7;
+  --color-text-secondary: #a9b7cf;
+  --color-text-muted: #7e8bab;
+
+  --color-success: #4ade80;
+  --color-success-bg: #0f2a1a;
+  --color-warning: #fbbf24;
+  --color-warning-bg: #2a2110;
+  --color-danger: #f87171;
+  --color-danger-bg: #2a1414;
+  --color-neutral: #a9b7cf;
+  --color-neutral-bg: #1a2540;
+
+  --color-ug: #7fb0ff;
+  --color-ug-bg: #10203f;
+  --color-pg: #d8a9ff;
+  --color-pg-bg: #241333;
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-card-hover: 0 4px 16px rgba(0, 0, 0, 0.4);
+
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
 }
 
 @media (prefers-reduced-motion: reduce) {

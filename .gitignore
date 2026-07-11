@@ -3,5 +3,8 @@
 __pycache__/
 *.pyc
 .env
+.env.production
 credentials.json
 token.json
+node_modules/
+.firebase/
