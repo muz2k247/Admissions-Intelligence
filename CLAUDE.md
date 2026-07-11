@@ -61,55 +61,38 @@ Every institution is one or more **sources**; every source has a `campus` field 
 
 **ABSOLUTE RULES — NEVER BREAK THESE:**
 
+There is no backend and no database (Cloud Run + Firestore were dropped in Phase E — see Commit conventions below; the dashboard fetches pipeline-published static JSON directly); the pipeline and dashboard need essentially no secrets to run locally. The one credential in play is a Firebase Hosting deploy token used by the scheduled publish step, and it is never a file in this repo.
+
 1. **Never commit secrets to git.** This includes:
-   - `.env` file (should be in `.gitignore`)
-   - `firebase-key.json` or any service account keys
+   - Any `.env*` file (`.env`, `.env.production`, etc.) — never commit one, full stop, even if its current contents look like a harmless placeholder. The file pattern itself is what's excluded, not a judgment call about today's contents.
+   - `firebase-key.json` or any service account / deploy keys
    - API keys, tokens, passwords
    - Private encryption keys
-   - Database credentials
-   
-   If you accidentally commit a secret, immediately rotate it in Firebase Console / Google Cloud. Committed secrets are compromised.
 
-2. **Use `.env` file for all local configuration:**
-   - Copy `.env.example` → `.env` locally (never commit `.env`)
-   - All credentials go in `.env`, referenced as environment variables
-   - Backend reads from `os.environ.get("VARIABLE_NAME")`
-   - Frontend reads from `import.meta.env.VITE_VARIABLE_NAME`
+   If you accidentally commit a secret, immediately rotate it (Firebase Console / wherever it was issued). Committed secrets are compromised.
+
+2. **Local configuration needs no secrets today.** `.env.example` documents this — there's nothing to copy into a local `.env` for the scraper, extraction pipeline, or dashboard dev server to run. If a future change reintroduces a credential, it goes in `.env` (never committed) and is referenced via `os.environ.get("VARIABLE_NAME")` / `import.meta.env.VITE_VARIABLE_NAME`, following this same rule.
 
 3. **Never log, print, or mention secrets in any form:**
-   - Don't log `os.environ.get("FIREBASE_SERVICE_ACCOUNT_KEY_JSON")` even for debugging
-   - Don't include secret values in error messages
+   - Don't include secret/token values in error messages, print statements, or orchestration prompt output
    - Don't mention secrets in commit messages, PR descriptions, or code comments
    - Don't paste secrets in conversations with Claude or any LLM (I will never ask for them)
 
-4. **Never hardcode secrets in code:**
-   - Bad: `FIREBASE_KEY = "eyJhbGc..."`
-   - Good: `FIREBASE_KEY = os.environ.get("FIREBASE_SERVICE_ACCOUNT_KEY_JSON")`
+4. **Never hardcode secrets in code.**
 
-5. **Cloud deployment uses cloud-native secret management:**
-   - Cloud Run: Set secrets via Google Cloud Console (not in Dockerfile or dockerfile build args)
-   - GitHub Actions: Use GitHub Secrets (not env vars in yaml files)
-   - Never pass secrets as command-line arguments
+5. **The Firebase Hosting deploy token is provisioned and stored outside the repo entirely:**
+   - Minted once via `firebase login:ci` (an interactive step a human does, not an agent)
+   - Stored only via the scheduled routine's own secret-injection mechanism (see `pipeline/orchestration_prompt.md`) — never as a repo file, never in `.env`
+   - Scoped to hosting deploys only — there's no Firestore/database credential to scope down anymore
+   - If exposed: revoke it (Firebase Console) and re-mint, same as any other leaked credential
 
-6. **Service account keys are treated as highly sensitive:**
-   - Firebase service accounts have admin access to Firestore
-   - Restrict to minimal required permissions (read/write `extracted_records` collection only)
-   - Store locally in `.env` only during development
-   - Rotate keys regularly (Firebase Console: Service Accounts tab → Manage Keys)
-   - If key is exposed: Delete immediately in Firebase Console, regenerate, update `.env`
-
-7. **If you discover a secret has been exposed:**
+6. **If you discover a secret has been exposed:**
    - STOP immediately
-   - Rotate the key/credential in the cloud console (Firebase, GCP, etc.)
-   - Update all `.env` files with new credentials
+   - Rotate the key/credential at its source
    - Verify the commit containing the secret is not reachable (force-push only if it's local, never if pushed)
    - Document what happened for audit purposes
 
-8. **Testing and development:**
-   - Use separate Firebase project for development (not production credentials)
-   - Test fixtures should never contain real secrets
-   - Mock credentials for unit tests (use fake but valid-format strings)
-   - Integration tests should use development-only service accounts
+7. **Testing:** test fixtures should never contain real secrets; mock any credential-shaped values with fake but valid-format strings.
 
 ## Format handling
 HTML is primary for all 15 sources. PDF fallback is required for Punjab University and UHS/NUMS notices specifically (both post supplementary PDFs — date sheets, merit lists). Build the PDF path as a fallback the HTML scraper calls, not a separate parallel pipeline.
@@ -149,6 +132,7 @@ Commit after each phase is functionally complete and passes the code-reviewer/qa
 - Phase B: scraper (config-driven, HTML + PDF fallback)
 - Phase C: extraction schema + content-classifier integration
 - Phase D: dashboard
+- Phase E: static publish + cron scheduling — dropped Cloud Run + Firestore; `pipeline/run_full.py`'s stage 5 now publishes `dashboard/frontend/public/data/*.json` directly (no backend, no database) for a `/schedule`-scheduled pipeline run to build and deploy on a recurring basis
 
 Plain, descriptive commit messages tied to the phase (e.g. `feat: config-driven scraper for pilot institutions`) — no need for heavier conventions than that at solo scale.
 

@@ -5,9 +5,9 @@
 2. **Stage 2**: Chunk for classification
 3. **Stage 3**: Content-classifier (Claude agent)
 4. **Stage 4**: Extract and build final records (undergrad-only — Postgraduate-classified chunks are excluded here, not just hidden downstream)
-5. **Stage 5**: Sync extracted records to Firestore (no-op if `FIREBASE_PROJECT_ID` isn't set — local dev stays file-based)
+5. **Stage 5**: Build & publish static data (writes `dashboard/frontend/public/data/{records,institutions}.json`, then rebuilds and deploys the static dashboard)
 
-The dashboard backend reads from Firestore when `FIREBASE_PROJECT_ID` is configured (production), falling back to `.tmp/extracted/` locally, and serves results via `/api/records`.
+The dashboard fetches `/data/records.json` and `/data/institutions.json` directly — there is no backend and no database. Cloud Run and Firestore were dropped entirely (Phase E); Firebase Hosting now only serves static files.
 
 ---
 
@@ -18,7 +18,7 @@ You are orchestrating a data pipeline with five stages. Your job is to:
 1. Run stages 1-2 (scraper + chunking)
 2. Spawn the content-classifier agent to handle stage 3
 3. Run stage 4 (extraction build) once classifier is done
-4. Run stage 5 (Firestore sync) so the deployed dashboard actually serves the new data
+4. Run stage 5 (build & publish static data) and deploy, so the live dashboard actually serves the new data
 5. Report final results
 
 **Key principle**: Fail gracefully. If any stage errors, log it clearly and stop — do NOT proceed to later stages.
@@ -100,27 +100,35 @@ python -m pipeline.run_full stage4 --out-scraped .tmp/scraped --classified .tmp/
 
 ---
 
-### Step 4: Run Stage 5 (Firestore Sync)
+### Step 4: Run Stage 5 (Build & Publish Static Data) and Deploy
 
-Push the newly built extracted records to Firestore so the deployed dashboard (Cloud Run + Firebase Hosting) actually serves them — without this step, a correct local extraction never reaches production:
+Build the static data the dashboard fetches, then rebuild and deploy the dashboard so the live site actually serves it — without this step, a correct local extraction never reaches production:
 
 ```bash
 python -m pipeline.run_full stage5 --extracted .tmp/extracted
+cd dashboard/frontend
+npm ci
+npm run build
+firebase deploy --only hosting --project admissions-intelligence-2fc32 --token "$FIREBASE_TOKEN"
 ```
 
 **Expected behavior:**
-- If `FIREBASE_PROJECT_ID` is not set in the environment: exits 0 immediately, no-op. This is normal for local/dev runs.
-- If set: clears the `extracted_records` Firestore collection and writes the new batch, only after all local records have been read successfully (so a read failure never wipes Firestore's last-good data).
+- `stage5` reads `.tmp/extracted/*.json` fully into memory first; only once that succeeds — and only if at least one record was found — does it write `dashboard/frontend/public/data/records.json` and `institutions.json`, both as one atomic unit (temp files first, then replaced together). A read failure or an empty/wrong `--extracted` path never touches (or blanks out) the previously-published live data.
+- `npm run build` copies `public/` (including the freshly-published `data/*.json`) into `dist/`.
+- `firebase deploy --only hosting` publishes `dist/` to the live static site.
+
+**Credential**: `FIREBASE_TOKEN` is a Firebase CI token, provisioned once by the user via `firebase login:ci` (an interactive step an agent cannot perform) and stored **only** via this scheduled routine's own secret-injection mechanism — never as a repo file, never in `.env`, never printed or logged by this prompt or any step above. If `FIREBASE_TOKEN` is not available in the environment, **STOP** before running `firebase deploy` and report "Deploy credential not configured" — do not attempt a workaround.
 
 **Error handling:**
-- If `.tmp/extracted/` is missing or contains an unreadable record: Script exits 1 before touching Firestore. **STOP** and report the error; Firestore's previous data is untouched.
-- If the Firestore delete or a write fails: Script exits 1. **STOP** and report the error.
+- If `stage5` exits 1 (unreadable `.tmp/extracted/`, zero records found, a malformed record, or `config/institutions.yaml` unreadable): **STOP** before touching `npm`/`firebase` at all. Report the specific error; the live dashboard's previously-published data is untouched.
+- If `npm ci` or `npm run build` fails: **STOP** and report the build error. The live site still serves the last successful deploy.
+- If `firebase deploy` fails (auth, network, quota): **STOP** and report the error. The locally-built `dist/` has the new data but it never reached the live site — retry next cycle.
 
 ---
 
 ### Step 5: Verify Data Integrity
 
-Once extraction build completes, verify the output is valid for the dashboard:
+Once extraction build completes, verify the output is valid before publishing:
 
 ```bash
 # Count records
@@ -135,7 +143,7 @@ cat .tmp/extracted/$(ls .tmp/extracted/*.json | head -1) | python -m json.tool >
 - Sample records parse as valid JSON
 - Each record has required fields: `source_url`, `chunk_id`, `degree_level`
 
-If any check fails: **ABORT** and report the specific failure.
+If any check fails: **ABORT** and report the specific failure — do not proceed to Step 4.
 
 ---
 
@@ -151,10 +159,9 @@ Stages executed:
   2. Chunking: [M] chunks produced
   3. Classification: [K] classified
   4. Extraction: [P] records extracted ([Q] postgraduate excluded)
-  5. Firestore sync: [R] records synced (or skipped — not configured)
+  5. Publish & deploy: [P] records + [I] institutions published, deployed to Firebase Hosting
 
-Data is ready at: http://localhost:8000/api/records
-Dashboard: http://localhost:5173
+Dashboard: https://admissions-intelligence-2fc32.web.app
 
 Next run: [Next scheduled time]
 ```
@@ -184,8 +191,10 @@ Next attempt: [Next scheduled time]
 | Extraction build fails | Stop; report error. Previous data retained. |
 | No records extracted | Stop; report "No records produced." Previous data retained. |
 | Partial extraction (some records fail) | Continue; warn user. Some records extracted. |
-| Firestore sync fails (read or write error) | Stop; report error. Firestore's previous data untouched. |
-| `FIREBASE_PROJECT_ID` not set | Skip sync silently (expected for local/dev runs). |
+| Stage 5 finds zero records / bad `--extracted` path | Stop before writing anything. Previously-published live data untouched. |
+| `npm run build` fails | Stop before deploying. Live site still serves the last successful deploy. |
+| `firebase deploy` fails | Stop; report error. Live site still serves the last successful deploy; retry next cycle. |
+| `FIREBASE_TOKEN` not set | Stop before attempting deploy; report "Deploy credential not configured." |
 
 ---
 
@@ -193,24 +202,25 @@ Next attempt: [Next scheduled time]
 
 - **Working directory**: Admissions Intelligence project root (`d:\Admissions-Intelligence` on Windows)
 - **Python**: venv activated with all dependencies installed (`pip install -r requirements.txt`)
+- **Node**: `npm` available for `npm ci` / `npm run build` in `dashboard/frontend`
+- **Firebase CLI**: available on PATH, authenticated via `FIREBASE_TOKEN` (see Step 4)
 - **Disk**: `.tmp/` directory writable, sufficient space for extracted records (~1-10MB typical)
 - **Agent availability**: Content-classifier agent must be functional and available
-- **Next run**: Scheduled job will re-run on next cron cycle (every 6 hours default)
+- **Next run**: Scheduled job will re-run on next cron cycle (interval set when the routine is created via `/schedule`)
 
 ---
 
 ## Quick Reference: File Paths
 
 ```
-.tmp/scraped/                     ← Stage 1 output (raw HTML)
-.tmp/chunks/chunks.json           ← Stage 2 output (chunk array)
-.tmp/chunks/classified.json       ← Stage 3 output (classifier results)
-.tmp/extracted/                   ← Stage 4 output (final ExtractedRecords, undergrad-only)
-Firestore `extracted_records`     ← Stage 5 output (production data source)
+.tmp/scraped/                                        ← Stage 1 output (raw HTML)
+.tmp/chunks/chunks.json                               ← Stage 2 output (chunk array)
+.tmp/chunks/classified.json                           ← Stage 3 output (classifier results)
+.tmp/extracted/                                        ← Stage 4 output (final ExtractedRecords, undergrad-only)
+dashboard/frontend/public/data/{records,institutions}.json  ← Stage 5 output (static dashboard data)
 
-Backend reads from: Firestore (if FIREBASE_PROJECT_ID set) else .tmp/extracted/
-Dashboard serves: http://localhost:5173
-API: http://localhost:8000/api/records
+Dashboard fetches: /data/records.json, /data/institutions.json (same-origin, no backend)
+Live site: https://admissions-intelligence-2fc32.web.app
 ```
 
 ---
@@ -220,15 +230,15 @@ API: http://localhost:8000/api/records
 To test the full pipeline before scheduling:
 
 ```bash
-# Terminal 1: Run this prompt manually
-# (Copy the steps above and execute them)
+# Terminal 1: Run this prompt manually up through stage 5
+# (Copy the steps above and execute them; stop before `firebase deploy`
+#  unless you actually want to publish live)
 
-# Terminal 2: Start the backend
-python -m uvicorn dashboard.backend.main:app --reload
-
-# Terminal 3: Start the frontend (if needed)
+# Terminal 2: Start the frontend against the locally-generated data
 cd dashboard/frontend
 npm run dev
 ```
+
+`vite dev` serves `public/` the same way `dist/` gets served in production, so a local `stage5` run followed by `npm run dev` is enough to see real data in the dashboard without deploying anything.
 
 Once all steps complete successfully, you can proceed with scheduling via the `/schedule` skill.

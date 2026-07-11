@@ -18,7 +18,7 @@ from pathlib import Path
 
 # Stage test: import modules first
 try:
-    from pipeline.run_full import stage_2_chunk, stage_4_build
+    from pipeline.run_full import stage_2_chunk, stage_4_build, stage_5_publish
     from extraction.classify import load_classifier_results
     print("[PASS] All pipeline modules import successfully")
 except ImportError as e:
@@ -216,32 +216,38 @@ def test_stage_4(test_dir: Path) -> bool:
         return False
 
 
-def test_backend_integration(test_dir: Path) -> bool:
-    """Test that backend can read the extracted records."""
+def test_stage_5_publish(test_dir: Path) -> bool:
+    """Test Stage 5: build the static data/*.json artifacts the dashboard fetches directly."""
     print("\n" + "="*70)
-    print("BACKEND INTEGRATION TEST")
+    print("STAGE 5: BUILD & PUBLISH STATIC DATA")
     print("="*70)
 
-    import os
+    extracted_dir = test_dir / "extracted"
+    publish_dir = test_dir / "publish"
+
     try:
-        # Set env var to test data
-        os.environ["ADMISSIONS_EXTRACTED_DIR"] = str(test_dir / "extracted")
+        exit_code = stage_5_publish(extracted_dir, publish_dir)
+        if exit_code != 0:
+            print(f"[FAIL] Stage 5 returned exit code {exit_code}")
+            return False
 
-        # Import backend after setting env var
-        from dashboard.backend.main import _load_records
+        records_file = publish_dir / "records.json"
+        institutions_file = publish_dir / "institutions.json"
+        if not records_file.exists() or not institutions_file.exists():
+            print("[FAIL] Stage 5 did not produce both records.json and institutions.json")
+            return False
 
-        records = _load_records()
-        print(f"[PASS] Backend loaded {len(records)} records")
+        records = json.loads(records_file.read_text())
+        institutions = json.loads(institutions_file.read_text())
+        print(f"[PASS] Published {len(records)} record(s) and {len(institutions)} institution(s)")
 
-        if len(records) > 0:
-            print(f"[PASS] Sample record type: {type(records[0]).__name__}")
-            r_dict = records[0].to_dict()
-            print(f"[PASS] Record has {len(r_dict)} fields")
+        if records:
+            print(f"[PASS] Sample record has {len(records[0])} fields")
 
         return True
 
     except Exception as e:
-        print(f"[FAIL] Backend integration failed: {e}")
+        print(f"[FAIL] Stage 5 publish failed: {e}")
         import traceback
         traceback.print_exc()
         return False
@@ -273,9 +279,9 @@ def main() -> None:
         print("\n[FAIL] Stage 4 failed. Aborting.")
         sys.exit(1)
 
-    # Backend integration
-    if not test_backend_integration(test_dir):
-        print("\n[FAIL] Backend integration failed. Aborting.")
+    # Stage 5: Build & publish static data
+    if not test_stage_5_publish(test_dir):
+        print("\n[FAIL] Stage 5 publish failed. Aborting.")
         sys.exit(1)
 
     # Final summary
@@ -285,9 +291,9 @@ def main() -> None:
     print(f"\nTest data created in: {test_dir}")
     print("\nNext steps:")
     print("  1. The pipeline orchestration is ready to be scheduled")
-    print("  2. Use /schedule to set up the cloud job (every 6 hours recommended)")
+    print("  2. Use /schedule to set up the cloud job")
     print("  3. First scheduled run will fetch live data from institutions")
-    print("  4. Dashboard will display records at: http://localhost:5173")
+    print("  4. Dashboard fetches published data directly — no backend to run")
     print("\n" + "="*70)
 
 
