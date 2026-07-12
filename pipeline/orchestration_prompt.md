@@ -17,6 +17,7 @@ The dashboard fetches `/data/records.json` and `/data/institutions.json` directl
 
 ### Overview
 You are orchestrating a data pipeline with five stages. Your job is to:
+0. Install dependencies (this is a fresh checkout each run)
 1. Run stages 1-2 (scraper + chunking)
 2. Spawn the content-classifier agent to handle stage 3
 3. Run stage 4 (extraction build) once classifier is done
@@ -27,12 +28,24 @@ You are orchestrating a data pipeline with five stages. Your job is to:
 
 ---
 
+### Step 0: Install Dependencies
+
+This is a fresh git checkout each run (no pre-existing venv) — install dependencies before anything else:
+
+```bash
+cd <repository root — confirm with `pwd`/`git rev-parse --show-toplevel`, do not assume a fixed path>
+pip install -r requirements.txt
+```
+
+**Error handling:** If `pip install` fails (network, package resolution): **STOP** and report "Dependency install failed" before attempting any pipeline stage.
+
+---
+
 ### Step 1: Run Stages 1-2 (Scraper + Chunking)
 
 Run the orchestration script to fetch data and produce chunks:
 
 ```bash
-cd /root/work/d--Admissions-Intelligence
 python -m pipeline.run_full stage1_2 --out-scraped .tmp/scraped --out-chunks .tmp/chunks/chunks.json
 ```
 
@@ -108,10 +121,14 @@ Build the static data the dashboard fetches, then commit and push it — this is
 
 ```bash
 python -m pipeline.run_full stage5 --extracted .tmp/extracted
+git config user.name "Admissions Intelligence Pipeline"
+git config user.email "pipeline@admissions-intelligence.local"
 git add dashboard/frontend/public/data/records.json dashboard/frontend/public/data/institutions.json
 git commit -m "chore: publish pipeline data ($(date -u +%Y-%m-%dT%H:%M:%SZ))"
 git push origin main
 ```
+
+The `git config` lines are local to this checkout only (no `--global`) and safe to run every time — a fresh sandbox has no identity configured yet, and re-running on a sandbox that already has one just overwrites it with the same values.
 
 **Expected behavior:**
 - `stage5` reads `.tmp/extracted/*.json` fully into memory first; only once that succeeds — and only if at least one record was found — does it write `dashboard/frontend/public/data/records.json` and `institutions.json`, both as one atomic unit (temp files first, then replaced together). A read failure or an empty/wrong `--extracted` path never touches (or blanks out) the previously-published live data.
@@ -198,8 +215,8 @@ Next attempt: [Next scheduled time]
 
 ## Environment & Assumptions
 
-- **Working directory**: Admissions Intelligence project root (repo root of the routine's git checkout)
-- **Python**: venv activated with all dependencies installed (`pip install -r requirements.txt`)
+- **Working directory**: Admissions Intelligence project root — a fresh git checkout each run; confirm the actual path with `pwd`/`git rev-parse --show-toplevel` rather than assuming one (see Step 0)
+- **Python**: no pre-existing venv — Step 0 installs dependencies fresh from `requirements.txt` every run
 - **Git**: the routine's checkout must have push access to `main` on the connected repo — unverified as of Phase F, confirm on the first real run (see Step 4 error handling)
 - **Disk**: `.tmp/` directory writable, sufficient space for extracted records (~1-10MB typical)
 - **Agent availability**: Content-classifier agent must be functional and available — the routine's `allowed_tools` must include `Agent`, not just `Bash`/`Read`/`Write`/`Edit`/`Glob`/`Grep`
