@@ -1,0 +1,121 @@
+[
+  {
+    "id": "uet",
+    "name": "University of Engineering & Technology, Lahore",
+    "admitting_body": false,
+    "ug_pg_mixed": true,
+    "campuses": [
+      "Lahore (Main + sub-campuses)"
+    ]
+  },
+  {
+    "id": "uet_taxila",
+    "name": "University of Engineering & Technology, Taxila",
+    "admitting_body": false,
+    "ug_pg_mixed": true,
+    "campuses": []
+  },
+  {
+    "id": "nust",
+    "name": "National University of Sciences & Technology",
+    "admitting_body": false,
+    "ug_pg_mixed": false,
+    "campuses": []
+  },
+  {
+    "id": "giki",
+    "name": "Ghulam Ishaq Khan Institute",
+    "admitting_body": false,
+    "ug_pg_mixed": false,
+    "campuses": []
+  },
+  {
+    "id": "pieas",
+    "name": "Pakistan Institute of Engineering and Applied Sciences",
+    "admitting_body": false,
+    "ug_pg_mixed": true,
+    "campuses": []
+  },
+  {
+    "id": "fast_nu",
+    "name": "National University of Computer and Emerging Sciences (FAST-NU)",
+    "admitting_body": false,
+    "ug_pg_mixed": true,
+    "campuses": []
+  },
+  {
+    "id": "pu",
+    "name": "University of the Punjab",
+    "admitting_body": false,
+    "ug_pg_mixed": true,
+    "campuses": []
+  },
+  {
+    "id": "comsats",
+    "name": "COMSATS University Islamabad",
+    "admitting_body": false,
+    "ug_pg_mixed": true,
+    "campuses": []
+  },
+  {
+    "id": "lums",
+    "name": "Lahore University of Management Sciences",
+    "admitting_body": false,
+    "ug_pg_mixed": true,
+    "campuses": []
+  },
+  {
+    "id": "itu",
+    "name": "Information Technology University",
+    "admitting_body": false,
+    "ug_pg_mixed": true,
+    "campuses": []
+  },
+  {
+    "id": "ist",
+    "name": "Institute of Space Technology",
+    "admitting_body": false,
+    "ug_pg_mixed": true,
+    "campuses": []
+  },
+  {
+    "id": "air_university",
+    "name": "Air University",
+    "admitting_body": false,
+    "ug_pg_mixed": true,
+    "campuses": [
+      "Islamabad & Punjab campuses",
+      "Karachi"
+    ]
+  },
+  {
+    "id": "uhs",
+    "name": "University of Health Sciences",
+    "admitting_body": true,
+    "ug_pg_mixed": true,
+    "campuses": []
+  },
+  {
+    "id": "nums",
+    "name": "National University of Medical Sciences",
+    "admitting_body": true,
+    "ug_pg_mixed": true,
+    "campuses": []
+  },
+  {
+    "id": "aku",
+    "name": "Aga Khan University",
+    "admitting_body": false,
+    "ug_pg_mixed": true,
+    "campuses": [
+      "Pakistan (Karachi) \u2014 MBBS"
+    ]
+  },
+  {
+    "id": "bahria",
+    "name": "Bahria University",
+    "admitting_body": false,
+    "ug_pg_mixed": true,
+    "campuses": []
+  }
+]
