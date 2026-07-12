@@ -1,13 +1,15 @@
 # Admissions Intelligence Pipeline Orchestration Prompt
 
-**Context**: This prompt is designed to be run as a scheduled cloud job (via CronCreate/schedule). It orchestrates all five pipeline stages end-to-end:
+**Context**: This prompt is designed to be run as a scheduled cloud routine (via the `/schedule` skill / `RemoteTrigger`). It orchestrates all five pipeline stages end-to-end:
 1. **Stage 1**: Scrape institutions
 2. **Stage 2**: Chunk for classification
 3. **Stage 3**: Content-classifier (Claude agent)
 4. **Stage 4**: Extract and build final records (undergrad-only — Postgraduate-classified chunks are excluded here, not just hidden downstream)
-5. **Stage 5**: Build & publish static data (writes `dashboard/frontend/public/data/{records,institutions}.json`, then rebuilds and deploys the static dashboard)
+5. **Stage 5**: Build & publish static data (writes `dashboard/frontend/public/data/{records,institutions}.json`), then commit and push to `main`
 
-The dashboard fetches `/data/records.json` and `/data/institutions.json` directly — there is no backend and no database. Cloud Run and Firestore were dropped entirely (Phase E); Firebase Hosting now only serves static files.
+The dashboard fetches `/data/records.json` and `/data/institutions.json` directly — there is no backend and no database. Cloud Run and Firestore were dropped entirely (Phase E); Firebase Hosting only serves static files.
+
+**This routine does not deploy.** It runs in an isolated cloud sandbox with no access to local files, local services, or local environment variables — there's nowhere in that sandbox to safely hold the Firebase deploy credential. Instead, the routine's job ends at "the new data is live in git." Pushing to `main` under `dashboard/frontend/**` triggers `.github/workflows/deploy.yml`, a separate GitHub Actions workflow that builds and deploys using a `FIREBASE_TOKEN` GitHub Actions secret — a credential this routine's prompt never sees, sets, or needs (Phase F).
 
 ---
 
@@ -18,7 +20,7 @@ You are orchestrating a data pipeline with five stages. Your job is to:
 1. Run stages 1-2 (scraper + chunking)
 2. Spawn the content-classifier agent to handle stage 3
 3. Run stage 4 (extraction build) once classifier is done
-4. Run stage 5 (build & publish static data) and deploy, so the live dashboard actually serves the new data
+4. Run stage 5 (build & publish static data), then commit and push — GitHub Actions takes it from there
 5. Report final results
 
 **Key principle**: Fail gracefully. If any stage errors, log it clearly and stop — do NOT proceed to later stages.
@@ -100,29 +102,25 @@ python -m pipeline.run_full stage4 --out-scraped .tmp/scraped --classified .tmp/
 
 ---
 
-### Step 4: Run Stage 5 (Build & Publish Static Data) and Deploy
+### Step 4: Run Stage 5 (Build & Publish Static Data), Commit and Push
 
-Build the static data the dashboard fetches, then rebuild and deploy the dashboard so the live site actually serves it — without this step, a correct local extraction never reaches production:
+Build the static data the dashboard fetches, then commit and push it — this is the routine's last step; GitHub Actions handles the actual deploy from here:
 
 ```bash
 python -m pipeline.run_full stage5 --extracted .tmp/extracted
-cd dashboard/frontend
-npm ci
-npm run build
-firebase deploy --only hosting --project admissions-intelligence-2fc32 --token "$FIREBASE_TOKEN"
+git add dashboard/frontend/public/data/records.json dashboard/frontend/public/data/institutions.json
+git commit -m "chore: publish pipeline data ($(date -u +%Y-%m-%dT%H:%M:%SZ))"
+git push origin main
 ```
 
 **Expected behavior:**
 - `stage5` reads `.tmp/extracted/*.json` fully into memory first; only once that succeeds — and only if at least one record was found — does it write `dashboard/frontend/public/data/records.json` and `institutions.json`, both as one atomic unit (temp files first, then replaced together). A read failure or an empty/wrong `--extracted` path never touches (or blanks out) the previously-published live data.
-- `npm run build` copies `public/` (including the freshly-published `data/*.json`) into `dist/`.
-- `firebase deploy --only hosting` publishes `dist/` to the live static site.
-
-**Credential**: `FIREBASE_TOKEN` is a Firebase CI token, provisioned once by the user via `firebase login:ci` (an interactive step an agent cannot perform) and stored **only** via this scheduled routine's own secret-injection mechanism — never as a repo file, never in `.env`, never printed or logged by this prompt or any step above. If `FIREBASE_TOKEN` is not available in the environment, **STOP** before running `firebase deploy` and report "Deploy credential not configured" — do not attempt a workaround.
+- If neither file actually changed content since the last run (no new deadlines/fees/programs, nothing scraped differently), `git commit` will report nothing to commit — that's a normal outcome, not a failure. Skip the push in that case rather than erroring.
+- `git push` lands the new data on `main` under `dashboard/frontend/public/data/`, which triggers `.github/workflows/deploy.yml` to build and deploy. This routine's job is done at that point — it does not wait for or verify the GitHub Actions run.
 
 **Error handling:**
-- If `stage5` exits 1 (unreadable `.tmp/extracted/`, zero records found, a malformed record, or `config/institutions.yaml` unreadable): **STOP** before touching `npm`/`firebase` at all. Report the specific error; the live dashboard's previously-published data is untouched.
-- If `npm ci` or `npm run build` fails: **STOP** and report the build error. The live site still serves the last successful deploy.
-- If `firebase deploy` fails (auth, network, quota): **STOP** and report the error. The locally-built `dist/` has the new data but it never reached the live site — retry next cycle.
+- If `stage5` exits 1 (unreadable `.tmp/extracted/`, zero records found, a malformed record, or `config/institutions.yaml` unreadable): **STOP** before touching `git` at all. Report the specific error; the live dashboard's previously-published data is untouched.
+- If `git push` fails (no push credentials on this checkout, network, conflict with a concurrent push): **STOP** and report the error. The new data exists locally in this sandbox but never reached `main`, so nothing deploys — retry next cycle. (Whether this routine's git checkout actually has push permission to the repo is unverified as of Phase F — if every run fails here, that's the first thing to check.)
 
 ---
 
@@ -159,9 +157,9 @@ Stages executed:
   2. Chunking: [M] chunks produced
   3. Classification: [K] classified
   4. Extraction: [P] records extracted ([Q] postgraduate excluded)
-  5. Publish & deploy: [P] records + [I] institutions published, deployed to Firebase Hosting
+  5. Publish & push: [P] records + [I] institutions published, pushed to main (or "no changes to commit")
 
-Dashboard: https://admissions-intelligence-2fc32.web.app
+GitHub Actions will build and deploy: https://admissions-intelligence-2fc32.web.app
 
 Next run: [Next scheduled time]
 ```
@@ -192,34 +190,34 @@ Next attempt: [Next scheduled time]
 | No records extracted | Stop; report "No records produced." Previous data retained. |
 | Partial extraction (some records fail) | Continue; warn user. Some records extracted. |
 | Stage 5 finds zero records / bad `--extracted` path | Stop before writing anything. Previously-published live data untouched. |
-| `npm run build` fails | Stop before deploying. Live site still serves the last successful deploy. |
-| `firebase deploy` fails | Stop; report error. Live site still serves the last successful deploy; retry next cycle. |
-| `FIREBASE_TOKEN` not set | Stop before attempting deploy; report "Deploy credential not configured." |
+| Nothing changed since last publish | `git commit` has nothing to commit — skip the push, report success with no deploy triggered. |
+| `git push` fails | Stop; report error. New data never reached `main`; nothing deploys; retry next cycle. |
+| GitHub Actions build/deploy fails | Outside this routine's visibility — surfaces in the Actions run log, not here. Check https://github.com/muz2k247/Admissions-Intelligence/actions if the live site stops updating despite successful routine runs. |
 
 ---
 
 ## Environment & Assumptions
 
-- **Working directory**: Admissions Intelligence project root (`d:\Admissions-Intelligence` on Windows)
+- **Working directory**: Admissions Intelligence project root (repo root of the routine's git checkout)
 - **Python**: venv activated with all dependencies installed (`pip install -r requirements.txt`)
-- **Node**: `npm` available for `npm ci` / `npm run build` in `dashboard/frontend`
-- **Firebase CLI**: available on PATH, authenticated via `FIREBASE_TOKEN` (see Step 4)
+- **Git**: the routine's checkout must have push access to `main` on the connected repo — unverified as of Phase F, confirm on the first real run (see Step 4 error handling)
 - **Disk**: `.tmp/` directory writable, sufficient space for extracted records (~1-10MB typical)
-- **Agent availability**: Content-classifier agent must be functional and available
-- **Next run**: Scheduled job will re-run on next cron cycle (interval set when the routine is created via `/schedule`)
+- **Agent availability**: Content-classifier agent must be functional and available — the routine's `allowed_tools` must include `Agent`, not just `Bash`/`Read`/`Write`/`Edit`/`Glob`/`Grep`
+- **Next run**: Scheduled job will re-run on next cron cycle (interval set when the routine is created via `/schedule`; minimum 1 hour)
 
 ---
 
 ## Quick Reference: File Paths
 
 ```
-.tmp/scraped/                                        ← Stage 1 output (raw HTML)
-.tmp/chunks/chunks.json                               ← Stage 2 output (chunk array)
-.tmp/chunks/classified.json                           ← Stage 3 output (classifier results)
-.tmp/extracted/                                        ← Stage 4 output (final ExtractedRecords, undergrad-only)
-dashboard/frontend/public/data/{records,institutions}.json  ← Stage 5 output (static dashboard data)
+.tmp/scraped/                                                ← Stage 1 output (raw HTML)
+.tmp/chunks/chunks.json                                       ← Stage 2 output (chunk array)
+.tmp/chunks/classified.json                                   ← Stage 3 output (classifier results)
+.tmp/extracted/                                                ← Stage 4 output (final ExtractedRecords, undergrad-only)
+dashboard/frontend/public/data/{records,institutions}.json    ← Stage 5 output (static dashboard data, git-tracked)
 
 Dashboard fetches: /data/records.json, /data/institutions.json (same-origin, no backend)
+Push to main under dashboard/frontend/** triggers: .github/workflows/deploy.yml (build + Firebase Hosting deploy)
 Live site: https://admissions-intelligence-2fc32.web.app
 ```
 
@@ -231,14 +229,14 @@ To test the full pipeline before scheduling:
 
 ```bash
 # Terminal 1: Run this prompt manually up through stage 5
-# (Copy the steps above and execute them; stop before `firebase deploy`
-#  unless you actually want to publish live)
+# (Copy the steps above and execute them; stop before `git push`
+#  unless you actually want to trigger a real GitHub Actions deploy)
 
 # Terminal 2: Start the frontend against the locally-generated data
 cd dashboard/frontend
 npm run dev
 ```
 
-`vite dev` serves `public/` the same way `dist/` gets served in production, so a local `stage5` run followed by `npm run dev` is enough to see real data in the dashboard without deploying anything.
+`vite dev` serves `public/` the same way `dist/` gets served in production, so a local `stage5` run followed by `npm run dev` is enough to see real data in the dashboard without pushing or deploying anything.
 
 Once all steps complete successfully, you can proceed with scheduling via the `/schedule` skill.

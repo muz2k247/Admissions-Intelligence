@@ -61,7 +61,7 @@ Every institution is one or more **sources**; every source has a `campus` field 
 
 **ABSOLUTE RULES — NEVER BREAK THESE:**
 
-There is no backend and no database (Cloud Run + Firestore were dropped in Phase E — see Commit conventions below; the dashboard fetches pipeline-published static JSON directly); the pipeline and dashboard need essentially no secrets to run locally. The one credential in play is a Firebase Hosting deploy token used by the scheduled publish step, and it is never a file in this repo.
+There is no backend and no database (Cloud Run + Firestore were dropped in Phase E — see Commit conventions below; the dashboard fetches pipeline-published static JSON directly); the pipeline and dashboard need essentially no secrets to run locally. The one credential in play is a Firebase Hosting deploy token, and it is never a file in this repo. The scheduled pipeline routine (Phase E/F) runs in an isolated cloud sandbox with no access to local env vars, so it never holds this token either — it only commits and pushes published data to `main`; a separate GitHub Actions workflow (`.github/workflows/deploy.yml`) does the actual deploy, authenticated via a `FIREBASE_TOKEN` GitHub Actions repository secret.
 
 1. **Never commit secrets to git.** This includes:
    - Any `.env*` file (`.env`, `.env.production`, etc.) — never commit one, full stop, even if its current contents look like a harmless placeholder. The file pattern itself is what's excluded, not a judgment call about today's contents.
@@ -82,9 +82,9 @@ There is no backend and no database (Cloud Run + Firestore were dropped in Phase
 
 5. **The Firebase Hosting deploy token is provisioned and stored outside the repo entirely:**
    - Minted once via `firebase login:ci` (an interactive step a human does, not an agent)
-   - Stored only via the scheduled routine's own secret-injection mechanism (see `pipeline/orchestration_prompt.md`) — never as a repo file, never in `.env`
+   - Stored only as a GitHub Actions repository secret (`FIREBASE_TOKEN`, set via Settings → Secrets and variables → Actions) — never as a repo file, never in `.env`, never passed to or through the scheduled pipeline routine (see `pipeline/orchestration_prompt.md` for why the routine can't hold it)
    - Scoped to hosting deploys only — there's no Firestore/database credential to scope down anymore
-   - If exposed: revoke it (Firebase Console) and re-mint, same as any other leaked credential
+   - If exposed: revoke it (Firebase Console) and re-mint, then update the GitHub Actions secret
 
 6. **If you discover a secret has been exposed:**
    - STOP immediately
