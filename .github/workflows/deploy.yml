@@ -1,0 +1,44 @@
+name: Deploy dashboard
+
+# The scheduled pipeline routine (see pipeline/orchestration_prompt.md) commits
+# freshly-published dashboard/frontend/public/data/*.json and pushes to main.
+# That push lands here: build the static site and deploy it to Firebase Hosting.
+# The routine itself never touches the deploy credential — it only lives as a
+# GitHub Actions secret (Settings > Secrets and variables > Actions > FIREBASE_TOKEN),
+# never a repo file.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "dashboard/frontend/**"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: dashboard/frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: dashboard/frontend
+        run: npm ci
+
+      - name: Build
+        working-directory: dashboard/frontend
+        run: npm run build
+
+      - name: Deploy to Firebase Hosting
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          if [ -z "$FIREBASE_TOKEN" ]; then
+            echo "::error::FIREBASE_TOKEN secret is not set — see Settings > Secrets and variables > Actions." >&2
+            exit 1
+          fi
+          npm install -g firebase-tools
+          firebase deploy --only hosting --project admissions-intelligence-2fc32 --token "$FIREBASE_TOKEN"
