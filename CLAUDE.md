@@ -61,7 +61,11 @@ Every institution is one or more **sources**; every source has a `campus` field 
 
 **ABSOLUTE RULES — NEVER BREAK THESE:**
 
-There is no backend and no database (Cloud Run + Firestore were dropped in Phase E — see Commit conventions below; the dashboard fetches pipeline-published static JSON directly); the pipeline and dashboard need essentially no secrets to run locally. The one credential in play is a Firebase Hosting deploy token, and it is never a file in this repo. The scheduled pipeline routine (Phase E/F) runs in an isolated cloud sandbox with no access to local env vars, so it never holds this token either — it only commits and pushes published data to `main`; a separate GitHub Actions workflow (`.github/workflows/deploy.yml`) does the actual deploy, authenticated via a `FIREBASE_TOKEN` GitHub Actions repository secret.
+The **public dashboard** has no backend and no database — it fetches pipeline-published static JSON directly (Cloud Run + Firestore were dropped for the read path in Phase E — see Commit conventions below). That decision stands and is not reversed.
+
+Phase K reintroduced Firestore **narrowly, for the admin CMS's write path only** — a genuinely different use case Phase E never evaluated (Phase E only killed a live read API). This is NOT the discarded "Phase G" drift: 1–2 curators sign in (Firebase Auth) and write field corrections to an `overrides` collection; the pipeline reads that collection **unauthenticated** at publish time (`pipeline/overrides.py`) and bakes the corrections into the static `records.json`. The public dashboard still never touches Firestore — it stays 100% static. Security is enforced by `firestore.rules` (public read on `overrides`, writes locked to a curator UID allowlist), not by key secrecy, so the pipeline holds no Firestore credential. If you're a fresh agent tempted to "clean up" this Firestore usage as contradicting the no-database rule: don't — it's sanctioned and scoped; see `docs/admin_cms_setup.md`.
+
+The pipeline and dashboard need essentially no secrets to run locally. Credentials in play: a Firebase Hosting deploy token and (Phase L) an `ANTHROPIC_API_KEY` for the CI pipeline — both are GitHub Actions repository secrets, never files in this repo. The scheduled pipeline routine runs in an isolated cloud sandbox with no access to local env vars, so it never holds the deploy token — a separate GitHub Actions workflow (`.github/workflows/deploy.yml`) does the actual deploy, authenticated via a `FIREBASE_TOKEN` GitHub Actions repository secret.
 
 1. **Never commit secrets to git.** This includes:
    - Any `.env*` file (`.env`, `.env.production`, etc.) — never commit one, full stop, even if its current contents look like a harmless placeholder. The file pattern itself is what's excluded, not a judgment call about today's contents.
@@ -83,7 +87,7 @@ There is no backend and no database (Cloud Run + Firestore were dropped in Phase
 5. **The Firebase Hosting deploy token is provisioned and stored outside the repo entirely:**
    - Minted once via `firebase login:ci` (an interactive step a human does, not an agent)
    - Stored only as a GitHub Actions repository secret (`FIREBASE_TOKEN`, set via Settings → Secrets and variables → Actions) — never as a repo file, never in `.env`, never passed to or through the scheduled pipeline routine (see `pipeline/orchestration_prompt.md` for why the routine can't hold it)
-   - Scoped to hosting deploys only — there's no Firestore/database credential to scope down anymore
+   - Scoped to hosting + Firestore-rules deploys (`firebase deploy --only hosting:public,hosting:admin,firestore:rules`). There is still no Firestore *data-plane* credential: the pipeline reads the `overrides` collection unauthenticated (public read per `firestore.rules`), and curator writes are gated by Firebase Auth in the browser, not by any repo-held key
    - If exposed: revoke it (Firebase Console) and re-mint, then update the GitHub Actions secret
 
 6. **If you discover a secret has been exposed:**
