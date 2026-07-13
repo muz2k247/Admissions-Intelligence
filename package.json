@@ -1,0 +1,14 @@
+{
+  "name": "admissions-intelligence-tooling",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Repo-root dev tooling (screenshot verification). The dashboard app is a separate package under dashboard/frontend/.",
+  "scripts": {
+    "screenshots": "playwright test",
+    "screenshots:install": "playwright install chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.61.1"
+  }
+}
