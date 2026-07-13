@@ -11,9 +11,19 @@ function getStoredTheme() {
   }
 }
 
+function getSystemPreference() {
+  try {
+    return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  } catch {
+    return "light";
+  }
+}
+
 /* Explicit light/dark override on top of the OS-driven default in
- * tokens.css. null means "follow system" — the third state in the toggle
- * cycle, not just a two-way switch. */
+ * tokens.css. null means "follow system" — the pre-interaction default
+ * only. cycleTheme() is a true light<->dark toggle: once a user has
+ * clicked, null is never reachable again by clicking (it previously was,
+ * as a third cycle state, which made dark->light take two clicks). */
 export default function useTheme() {
   const [theme, setTheme] = useState(getStoredTheme);
 
@@ -36,7 +46,10 @@ export default function useTheme() {
   }, [theme]);
 
   function cycleTheme() {
-    setTheme((current) => (current === null ? "light" : current === "light" ? "dark" : null));
+    setTheme((current) => {
+      const effective = current ?? getSystemPreference();
+      return effective === "dark" ? "light" : "dark";
+    });
   }
 
   return { theme, cycleTheme };
