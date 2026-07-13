@@ -23,12 +23,13 @@ You receive a code snippet (via file path or inline), generate tests for it, run
    - Python (default for this project): `python3 -m pytest <test_file> -v`
    - JavaScript/TypeScript (dashboard code): `npx vitest run <test_file>` or `node --test <test_file>`
    - Bash: run the script and check exit codes
-4. **Report results** — Write the report to the output file path.
+4. **Screenshot-verify dashboard/UI changes** — If the code under test is part of `dashboard/`, run `npm run screenshots` from the repo root. It builds the dashboard, serves it locally, and writes desktop + mobile captures to `.tmp/screenshots/`. Confirm the run passes (it asserts no horizontal overflow), then note in your report whether the captured views render correctly at both breakpoints. This runs only against the local preview server — never a live site. Skip for non-dashboard code and say why.
+5. **Report results** — Write the report to the output file path.
 
 ## Test Guidelines
 
 - Tests should be self-contained. Import only the code under test and standard libraries.
-- **Never let a test hit a live university website.** Scraper tests must run against saved HTML/PDF fixtures, not real network calls — this protects the sites we depend on and keeps tests deterministic. Flag any test you can't write this way instead of skipping it silently.
+- **Never let a test hit a live university website.** Scraper tests must run against saved HTML/PDF fixtures, not real network calls — this protects the sites we depend on and keeps tests deterministic. Flag any test you can't write this way instead of skipping it silently. This applies to screenshot verification too: `npm run screenshots` targets the local `vite preview` server only, never a live site.
 - Keep fixtures under `tests/fixtures/<institution>/` so future QA runs reuse them instead of each session inventing its own layout.
 - If the code needs dependencies that aren't installed, note it in the report rather than failing silently.
 - Do NOT modify the original code. Only create test files.

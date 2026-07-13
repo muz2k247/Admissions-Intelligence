@@ -103,7 +103,7 @@ Defined in `.claude/agents/`. Follow the design/build loop for any non-trivial c
 2. Spawn `code-reviewer` — reports issues, does not fix.
 3. Spawn `qa` — writes and runs tests, does not fix.
 4. Parent agent applies fixes from both reports.
-5. Ship only after both pass.
+5. Ship only after both pass. **For any change to the dashboard, also run the screenshot verification (`npm run screenshots` — see Presentation layer below) and visually inspect the desktop + mobile captures before shipping; passing tests alone do not prove the UI renders correctly.**
 
 Use `research` for institution site investigation (prefer official `.edu.pk` domains over aggregators; timestamp anything deadline/fee-related). Use `content-classifier` for UG/PG routing on scraped chunks — `Ambiguous` results carry a reason code; don't treat all `Ambiguous` items as the same failure type.
 
@@ -125,6 +125,8 @@ tests/fixtures/<institution>/   saved HTML/PDF for QA — never test against liv
 The dashboard must work flawlessly on both desktop and mobile — not desktop-first with mobile as an afterthought. Mobile-first responsive layout, no horizontal scroll, adaptive navigation by breakpoint, and accessible contrast/touch targets are non-negotiable, not nice-to-haves. If a `ui-ux-pro-max`-style design skill is available in the environment, use it for any UI decision (layout, component, styling, chart) — it already treats mobile+desktop as one system rather than two separate builds.
 
 The dashboard's default view is Undergraduate-only (no PDF export — dropped as unnecessary scope). Ambiguous records are reachable only via an explicit opt-in filter for manual review, never blended into the default view alongside Undergraduate.
+
+**Verify dashboard changes visually, not just with tests.** Before shipping any change under `dashboard/`, run `npm run screenshots` from the repo root — it builds the dashboard, serves it, and captures desktop + mobile screenshots to `.tmp/screenshots/` (Playwright; config in `playwright.config.js`, spec in `screenshots/`). Open both images and confirm the change renders correctly against the non-negotiables above: no horizontal scroll (the spec asserts this automatically), adaptive layout at each breakpoint, readable contrast, and adequate touch targets. Screenshots run only against the local preview server, never a live site, and are a local/agent verification aid — deliberately not a CI gate.
 
 ## Commit conventions
 Commit after each phase is functionally complete and passes the code-reviewer/qa loop — not mid-phase. Phases for this stage of the project:
