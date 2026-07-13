@@ -14,16 +14,24 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG_PATH = REPO_ROOT / "config" / "institutions.yaml"
 
 
+_VALID_RENDER_MODES = {"static", "js"}
+
+
 @dataclass(frozen=True)
 class Source:
     institution_id: str
     campus: str | None
     url: str
     format: str  # "html" | "html+pdf"
+    render: str = "static"  # "static" | "js" — see config/institutions.yaml's header comment
 
     @property
     def has_pdf_fallback(self) -> bool:
         return "pdf" in self.format
+
+    @property
+    def needs_js_render(self) -> bool:
+        return self.render == "js"
 
 
 @dataclass(frozen=True)
@@ -43,15 +51,22 @@ def load_institutions(config_path: Path | str = DEFAULT_CONFIG_PATH) -> list[Ins
 
     institutions = []
     for entry in raw["institutions"]:
-        sources = [
-            Source(
-                institution_id=entry["id"],
-                campus=src.get("campus"),
-                url=src["url"],
-                format=src["format"],
+        sources = []
+        for src in entry["sources"]:
+            render = src.get("render", "static")
+            if render not in _VALID_RENDER_MODES:
+                raise ValueError(
+                    f"{entry['id']}: source render={render!r} must be one of {_VALID_RENDER_MODES}"
+                )
+            sources.append(
+                Source(
+                    institution_id=entry["id"],
+                    campus=src.get("campus"),
+                    url=src["url"],
+                    format=src["format"],
+                    render=render,
+                )
             )
-            for src in entry["sources"]
-        ]
         institutions.append(
             Institution(
                 id=entry["id"],

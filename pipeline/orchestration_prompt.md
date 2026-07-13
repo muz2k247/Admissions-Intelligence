@@ -35,9 +35,14 @@ This is a fresh git checkout each run (no pre-existing venv) — install depende
 ```bash
 cd <repository root — confirm with `pwd`/`git rev-parse --show-toplevel`, do not assume a fixed path>
 pip install -r requirements.txt
+if grep -q "render: js" config/institutions.yaml; then
+  playwright install chromium
+fi
 ```
 
-**Error handling:** If `pip install` fails (network, package resolution): **STOP** and report "Dependency install failed" before attempting any pipeline stage.
+Installing the `playwright` pip package alone does **not** install the actual browser binary — `playwright install chromium` is a separate download, run here **only if** a source in the config actually needs it (currently just `ist` — see `docs/js_rendering_audit.md`), so the ~100–300MB cost is zero unless a `render: js` source exists.
+
+**Error handling:** If `pip install` fails (network, package resolution): **STOP** and report "Dependency install failed" before attempting any pipeline stage. If `playwright install chromium` fails: don't stop the whole run — the JS-rendered source(s) will fail individually at Stage 1 (caught and reported per-source, same as any other fetch failure) while the rest of the pipeline proceeds with partial data.
 
 ---
 

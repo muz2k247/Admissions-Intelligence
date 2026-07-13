@@ -68,6 +68,13 @@ def _fetch_with_aia_recovery(
 
 
 def fetch_source(source: Source, session: requests.Session | None = None, timeout: int = DEFAULT_TIMEOUT) -> FetchResult:
+    if source.needs_js_render:
+        # Lazy import: sources that don't need JS rendering (the vast
+        # majority) should never require Playwright to be installed.
+        from scraper.js_fetch import fetch_source_js
+
+        return fetch_source_js(source, session=session, timeout=timeout)
+
     session = session or build_session()
     fetched_at = datetime.now(timezone.utc).isoformat()
     aia_bundle: str | None = None

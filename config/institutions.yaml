@@ -23,6 +23,11 @@
 #             OR a campus name when that campus has a genuinely distinct portal/URL
 #     url: base admissions URL (canonical, verified)
 #     format: html | html+pdf
+#     render: static | js (optional, defaults to static). "js" fetches via a headless browser
+#             instead of a plain HTTP GET — only set this when a source is confirmed JS-gated
+#             (real content only appears after client-side JS runs; a plain GET returns a thin/
+#             empty shell). See docs/js_rendering_audit.md for the evidence behind each verdict —
+#             don't set this speculatively, it's a real per-run cost (headless browser download).
 #     verified: true/false
 #     note: anything needing human awareness or follow-up
 
@@ -148,8 +153,9 @@ institutions:
       - campus: null
         url: "https://ist.edu.pk/admission"
         format: html
+        render: js
         verified: true
-        note: "UG application portal: ugadmission.ist.edu.pk (verified live). General eportal.ist.edu.pk also exists. Main campus Islamabad; branch campuses in Karachi and Kahuta exist but admissions appear centralized through the one UG portal. UG/PG mixed on notice pages."
+        note: "UG application portal: ugadmission.ist.edu.pk (verified live). General eportal.ist.edu.pk also exists. Main campus Islamabad; branch campuses in Karachi and Kahuta exist but admissions appear centralized through the one UG portal. UG/PG mixed on notice pages. CONFIRMED JS-GATED (docs/js_rendering_audit.md, 2026-07-13): a plain GET returns a Next.js RSC shell with ~54 chars of real text; no underlying data API found, so this needs the headless-browser fetch path."
 
   - id: air_university
     name: Air University
