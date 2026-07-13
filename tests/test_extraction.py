@@ -504,7 +504,10 @@ class TestChunkScrapedRecord:
         assert chunks[0].id == "uet__lahore_(main)"
         assert chunks[0].campus == "Lahore (Main)"
 
-    def test_pdf_text_is_appended_to_html_text(self):
+    def test_pdf_produces_its_own_chunk_with_its_own_source_url(self):
+        # Each PDF gets its own chunk with the PDF's own source_url, not
+        # the page's -- a fact extracted from this chunk must be attributed
+        # to the actual document it came from (CLAUDE.md hard rule 4).
         record = {
             "institution_id": "pu",
             "campus": None,
@@ -514,8 +517,126 @@ class TestChunkScrapedRecord:
             "pdfs": [{"url": "https://pu.edu.pk/x.pdf", "text": "Merit list PDF content."}],
         }
         chunks = chunk_scraped_record(record)
-        assert "Main page content." in chunks[0].raw_text
-        assert "Merit list PDF content." in chunks[0].raw_text
+        assert len(chunks) == 2
+
+        html_chunk = next(c for c in chunks if c.source_url == "https://pu.edu.pk/admissions")
+        assert html_chunk.raw_text.strip() == "Main page content."
+
+        pdf_chunk = next(c for c in chunks if c.source_url == "https://pu.edu.pk/x.pdf")
+        assert pdf_chunk.raw_text == "Merit list PDF content."
+        assert pdf_chunk.id != html_chunk.id
+        assert pdf_chunk.institution_id == "pu"
+        assert pdf_chunk.campus is None
+
+    def test_multiple_pdfs_each_produce_a_distinct_chunk(self):
+        record = {
+            "institution_id": "uhs",
+            "campus": None,
+            "source_url": "https://uhs.edu.pk/admissions.php",
+            "fetched_at": "2026-07-09T00:00:00Z",
+            "html": "<p>Landing page.</p>",
+            "pdfs": [
+                {"url": "https://uhs.edu.pk/notices/merit1.pdf", "text": "Merit list 1."},
+                {"url": "https://uhs.edu.pk/notices/merit2.pdf", "text": "Merit list 2."},
+                {"url": "https://uhs.edu.pk/notices/datesheet.pdf", "text": "Date sheet."},
+            ],
+        }
+        chunks = chunk_scraped_record(record)
+        assert len(chunks) == 4  # 1 html + 3 pdfs
+
+        pdf_chunks = [c for c in chunks if c.source_url != record["source_url"]]
+        assert len(pdf_chunks) == 3
+        assert {c.source_url for c in pdf_chunks} == {p["url"] for p in record["pdfs"]}
+        # every chunk id is distinct -- no accidental collisions
+        assert len({c.id for c in chunks}) == 4
+
+    def test_pdf_chunk_id_matches_hand_computed_hash(self):
+        # Pins the actual algorithm (sha256 of scheme+netloc+path, not just
+        # self-consistency within one process) -- a regression that swapped
+        # in a process-salted hash (e.g. Python's built-in hash()) would
+        # still pass a same-process "call it twice and compare" test, since
+        # that kind of salting is consistent within a single interpreter
+        # session but not across separate pipeline runs.
+        import hashlib as _hashlib
+
+        record = {
+            "institution_id": "pu",
+            "campus": None,
+            "source_url": "https://pu.edu.pk/admissions",
+            "fetched_at": "2026-07-09T00:00:00Z",
+            "html": "<p>Main page content.</p>",
+            "pdfs": [{"url": "https://pu.edu.pk/notices/merit_list.pdf", "text": "Merit list content."}],
+        }
+        chunks = chunk_scraped_record(record)
+        pdf_chunk = next(c for c in chunks if c.source_url.endswith(".pdf"))
+
+        expected_digest = _hashlib.sha256(b"https://pu.edu.pk/notices/merit_list.pdf").hexdigest()[:10]
+        assert pdf_chunk.id == f"pu__pdf_notices_merit_list_pdf_{expected_digest}"
+
+    def test_pdf_chunk_id_ignores_volatile_query_string(self):
+        # Real scraped PDF links (e.g. Punjab University's) carry
+        # cache-busting query params like "?v=1783709854" that change on
+        # every scrape for the same underlying document -- these must not
+        # affect the id, or the stability guarantee is broken in practice
+        # for exactly the sources (pu, uhs) this fix targets.
+        record_a = {
+            "institution_id": "pu", "campus": None, "source_url": "https://pu.edu.pk/admissions",
+            "fetched_at": "2026-07-09T00:00:00Z", "html": "<p>Page.</p>",
+            "pdfs": [{"url": "https://pu.edu.pk/faqs.pdf?v=1783709854", "text": "FAQ content."}],
+        }
+        record_b = {**record_a, "pdfs": [{"url": "https://pu.edu.pk/faqs.pdf?v=1783799999", "text": "FAQ content."}]}
+
+        id_a = next(c.id for c in chunk_scraped_record(record_a) if c.source_url.startswith("https://pu.edu.pk/faqs"))
+        id_b = next(c.id for c in chunk_scraped_record(record_b) if c.source_url.startswith("https://pu.edu.pk/faqs"))
+        assert id_a == id_b
+
+    def test_pdf_chunk_id_is_position_independent(self):
+        # Two runs where a PDF moves position in the list (e.g. scrape order
+        # changed) must still produce the same id for the same PDF URL --
+        # chunk_id is the key curator overrides are stored against, so a
+        # positional id would silently orphan those corrections.
+        record_a = {
+            "institution_id": "pu", "campus": None, "source_url": "https://pu.edu.pk/admissions",
+            "fetched_at": "2026-07-09T00:00:00Z", "html": "<p>Page.</p>",
+            "pdfs": [
+                {"url": "https://pu.edu.pk/a.pdf", "text": "A."},
+                {"url": "https://pu.edu.pk/b.pdf", "text": "B."},
+            ],
+        }
+        record_b = {**record_a, "pdfs": list(reversed(record_a["pdfs"]))}
+
+        chunks_a = {c.source_url: c.id for c in chunk_scraped_record(record_a)}
+        chunks_b = {c.source_url: c.id for c in chunk_scraped_record(record_b)}
+        assert chunks_a == chunks_b
+
+    def test_only_pdf_chunk_produced_when_html_is_empty(self):
+        # A JS-gated page with no real HTML text (e.g. ist before the
+        # headless-render fix) shouldn't produce a spurious empty HTML chunk
+        # if a linked PDF still has real text.
+        record = {
+            "institution_id": "x",
+            "campus": None,
+            "source_url": "https://example.edu.pk",
+            "fetched_at": "2026-07-09T00:00:00Z",
+            "html": "",
+            "pdfs": [{"url": "https://example.edu.pk/notice.pdf", "text": "Notice content."}],
+        }
+        chunks = chunk_scraped_record(record)
+        assert len(chunks) == 1
+        assert chunks[0].source_url == "https://example.edu.pk/notice.pdf"
+
+    def test_pdf_with_only_whitespace_text_is_skipped(self):
+        record = {
+            "institution_id": "pu",
+            "campus": None,
+            "source_url": "https://pu.edu.pk/admissions",
+            "fetched_at": "2026-07-09T00:00:00Z",
+            "html": "<p>Main page content.</p>",
+            "pdfs": [{"url": "https://pu.edu.pk/blank.pdf", "text": "   \n  "}],
+        }
+        chunks = chunk_scraped_record(record)
+        assert len(chunks) == 1
+        assert chunks[0].source_url == "https://pu.edu.pk/admissions"
 
     def test_pdf_without_text_key_is_skipped(self):
         record = {
