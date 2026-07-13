@@ -128,10 +128,19 @@ def _decode_document(doc: dict) -> tuple[str, dict[str, Field]] | None:
         entry = fields_map.get(field_name)
         if not isinstance(entry, dict):
             continue
+        # The admin app writes confidence 1.0, but the Firebase Web SDK encodes
+        # a whole-number float as Firestore integerValue, so it decodes to a
+        # Python int here. Coerce to float so overridden records publish a
+        # consistent 1.0 (matching the pipeline's other float confidences),
+        # not 1. bool is an int subclass -- exclude it so a stray boolean
+        # confidence still fails the Field invariant rather than becoming 1.0.
+        confidence = entry.get("confidence")
+        if isinstance(confidence, int) and not isinstance(confidence, bool):
+            confidence = float(confidence)
         try:
             result[field_name] = Field(
                 value=entry.get("value"),
-                confidence=entry.get("confidence"),
+                confidence=confidence,
                 note=entry.get("note"),
             )
         except (ValueError, TypeError) as exc:

@@ -208,6 +208,23 @@ class TestDecodeDocument:
         _, fields = _decode_document(doc)
         assert fields["programs"].value == ["BS CS", "BS EE"]
 
+    def test_integer_confidence_is_coerced_to_float(self):
+        # Firestore encodes the admin app's 1.0 as integerValue -> the decoder
+        # must produce a float so overridden records publish 1.0 not 1.
+        doc = {
+            "name": "projects/p/databases/(default)/documents/overrides/giki",
+            "fields": {"fields": {"mapValue": {"fields": {
+                "fee": {"mapValue": {"fields": {
+                    "value": {"stringValue": "Rs. 3000"},
+                    "confidence": {"integerValue": "1"},
+                    "note": {"stringValue": "human-verified"},
+                }}},
+            }}}},
+        }
+        _, fields = _decode_document(doc)
+        assert fields["fee"].confidence == 1.0
+        assert isinstance(fields["fee"].confidence, float)
+
 
 # ---------------------------------------------------------------------------
 # fetch_overrides
