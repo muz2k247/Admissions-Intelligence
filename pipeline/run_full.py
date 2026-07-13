@@ -1,11 +1,12 @@
 """Full pipeline orchestration: scraper → chunking → classification → extraction → static publish.
 
-Stages 1, 2, 4, 5 run here (deterministic Python). Stage 3 (classifier) is invoked
-separately by the calling orchestration prompt via Claude Code Agent.
+Stages 1, 2, 4, 5 run here (deterministic Python). Stage 3 (classifier) and the
+field-extractor step are both invoked separately by the calling orchestration
+prompt via Claude Code Agent, against the same stage-2 chunks file.
 
 Usage:
     Stage 1-2: python -m pipeline.run_full stage1_2 --out-scraped .tmp/scraped --out-chunks .tmp/chunks/chunks.json
-    Stage 4:   python -m pipeline.run_full stage4 --out-scraped .tmp/scraped --classified .tmp/chunks/classified.json --out .tmp/extracted
+    Stage 4:   python -m pipeline.run_full stage4 --out-scraped .tmp/scraped --classified .tmp/chunks/classified.json --llm-extracted .tmp/chunks/llm_fields.json --out .tmp/extracted
     Stage 5:   python -m pipeline.run_full stage5 --extracted .tmp/extracted
 
 Returns:
@@ -22,6 +23,7 @@ from pathlib import Path
 
 from extraction.chunker import chunk_scraped_record
 from extraction.classify import load_classifier_results
+from extraction.llm_fields import load_llm_field_results
 from extraction.run import build_extracted_records, write_extracted_records
 from extraction.schema import ExtractedRecord
 from scraper.config import load_institutions, iter_sources
@@ -166,12 +168,19 @@ def stage_2_chunk(scraped_dir: Path, out_path: Path) -> int:
     return 0
 
 
-def stage_4_build(scraped_dir: Path, classified_path: Path, out_dir: Path) -> int:
+def stage_4_build(scraped_dir: Path, classified_path: Path, out_dir: Path, llm_extracted_path: Path | None = None) -> int:
     """Stage 4: Merge classifier results with field extraction into final records.
+
+    llm_extracted_path, when given, is the field-extractor subagent's output
+    file -- its fields win per chunk where present; omitted, unreadable, or a
+    chunk not covered by it, falls back to the regex extractor
+    (extraction/fields.py). Unlike classified_path, a missing/corrupt
+    llm_extracted_path is never fatal to the run -- see the warning printed
+    at load time.
 
     Returns:
         0 if build succeeds (even if produces 0 records).
-        1 if fatal error (unreadable inputs).
+        1 if fatal error (unreadable scraped records or classifier output).
     """
     print(f"\n{'='*60}")
     print("STAGE 4: EXTRACTION BUILD")
@@ -191,7 +200,22 @@ def stage_4_build(scraped_dir: Path, classified_path: Path, out_dir: Path) -> in
         print(f"ERROR: Invalid classifier output {classified_path}: {exc}", file=sys.stderr)
         return 1
 
-    built, skipped, excluded_postgraduate = build_extracted_records(records, degree_levels)
+    llm_fields = None
+    if llm_extracted_path is not None:
+        try:
+            llm_fields = load_llm_field_results(llm_extracted_path)
+        except (json.JSONDecodeError, OSError) as exc:
+            # Degrade, don't fail the run: a missing/corrupt field-extractor
+            # output must behave exactly like --llm-extracted was never
+            # passed (full regex fallback), not like a fatal error -- the
+            # pipeline's graceful-degradation guarantee shouldn't depend on
+            # the orchestration prompt correctly omitting the flag under
+            # every failure mode (e.g. field-extractor timed out before
+            # writing anything at all).
+            print(f"WARN: Unreadable field-extractor output {llm_extracted_path}: {exc} -- falling back to regex extraction for all chunks")
+            llm_fields = None
+
+    built, skipped, excluded_postgraduate = build_extracted_records(records, degree_levels, llm_fields)
     written = write_extracted_records(built, out_dir)
 
     print(
@@ -325,6 +349,10 @@ def main() -> None:
     stage4_p.add_argument("--out-scraped", type=Path, default=DEFAULT_SCRAPED_DIR, help="Scraped records dir.")
     stage4_p.add_argument("--classified", type=Path, required=True, help="Classifier output file.")
     stage4_p.add_argument("--out", type=Path, default=DEFAULT_EXTRACTED_OUT, help="Output dir for extracted records.")
+    stage4_p.add_argument(
+        "--llm-extracted", type=Path, default=None,
+        help="field-extractor subagent output file. When omitted, falls back to the regex extractor for every chunk.",
+    )
 
     stage5_p = sub.add_parser("stage5", help="Build static dashboard data/*.json artifacts (stage 5).")
     stage5_p.add_argument("--extracted", type=Path, default=DEFAULT_EXTRACTED_OUT, help="Extracted records dir.")
@@ -342,7 +370,7 @@ def main() -> None:
         stage2_exit = stage_2_chunk(args.out_scraped, args.out_chunks)
         sys.exit(stage2_exit)
     elif args.stage == "stage4":
-        sys.exit(stage_4_build(args.out_scraped, args.classified, args.out))
+        sys.exit(stage_4_build(args.out_scraped, args.classified, args.out, args.llm_extracted))
     elif args.stage == "stage5":
         sys.exit(stage_5_publish(args.extracted, args.publish_dir))
 

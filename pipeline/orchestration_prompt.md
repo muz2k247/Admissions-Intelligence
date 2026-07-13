@@ -67,11 +67,11 @@ python -m pipeline.run_full stage1_2 --out-scraped .tmp/scraped --out-chunks .tm
 
 ---
 
-### Step 2: Invoke Content-Classifier Agent
+### Step 2: Invoke Content-Classifier and Field-Extractor Agents
 
-Spawn the content-classifier agent to classify all chunks from Step 1 into Undergraduate/Postgraduate/Ambiguous.
+Spawn both agents against the same `.tmp/chunks/chunks.json` produced in Step 1 — content-classifier for Undergraduate/Postgraduate/Ambiguous routing, field-extractor for deadline/fee/programs/constituent_college. They're independent of each other (neither reads the other's output) and can be run concurrently.
 
-**Agent invocation:**
+**Agent invocation (content-classifier):**
 
 Use the Agent tool (not Bash) to invoke content-classifier:
 
@@ -88,23 +88,42 @@ Write output to .tmp/chunks/classified.json in the exact format:
 Only JSON output, no explanation.
 ```
 
-**Wait for completion:**
-- Check `.tmp/chunks/classified.json` exists (agent output file)
-- Verify it contains valid JSON
-- If file doesn't appear within 15 minutes: **ABORT** and report "Classifier timed out"
-- If file exists but is malformed JSON: **ABORT** and report "Classifier output is invalid JSON"
+**Agent invocation (field-extractor):**
 
-**Important:** Do NOT proceed to Step 3 until classified.json is present and valid.
+Use the Agent tool (not Bash) to invoke field-extractor:
+
+```
+Read the chunks file at .tmp/chunks/chunks.json
+Read config/institutions.yaml for each chunk's institution's constituent_colleges (only uhs/nums have it).
+Extract deadline, fee, programs, and constituent_college for each chunk under a strict null-if-unstated contract.
+Write output to .tmp/chunks/llm_fields.json in the exact format:
+{
+  "<chunk_id>": {
+    "deadline": {"value": ..., "confidence": <0.0-1.0>, "note": ...} | null,
+    "fee": {"value": ..., "confidence": <0.0-1.0>, "note": ...} | null,
+    "programs": {"value": ..., "confidence": <0.0-1.0>, "note": ...} | null,
+    "constituent_college": {"value": ..., "confidence": <0.0-1.0>, "note": ...} | null
+  }
+}
+
+Only JSON output, no explanation.
+```
+
+**Wait for completion:**
+- **content-classifier is a hard requirement** — degree-level routing has no fallback. Check `.tmp/chunks/classified.json` exists and contains valid JSON. If it doesn't appear within 15 minutes: **ABORT** and report "Classifier timed out." If it exists but is malformed JSON: **ABORT** and report "Classifier output is invalid JSON." Do NOT proceed to Step 3 without a valid `classified.json`.
+- **field-extractor is best-effort, not a hard requirement** — `pipeline/run_full.py stage4` (Step 3) already treats a missing or unreadable `.tmp/chunks/llm_fields.json` as "fall back to the regex extractor for every chunk," not a fatal error. So: wait up to 15 minutes for `.tmp/chunks/llm_fields.json` to appear and be valid JSON, but if it times out or is malformed, just note that in your run report and **proceed to Step 3 anyway** — always pass `--llm-extracted .tmp/chunks/llm_fields.json` to stage4 regardless of whether the file actually exists; the code handles the missing/corrupt case itself, so there's nothing conditional for you to decide here.
 
 ---
 
 ### Step 3: Run Stage 4 (Extraction Build)
 
-Once classifier finishes, run the extraction build to merge classifier results with field extraction:
+Once `classified.json` is valid (regardless of whether `llm_fields.json` succeeded — see Step 2), run the extraction build:
 
 ```bash
-python -m pipeline.run_full stage4 --out-scraped .tmp/scraped --classified .tmp/chunks/classified.json --out .tmp/extracted
+python -m pipeline.run_full stage4 --out-scraped .tmp/scraped --classified .tmp/chunks/classified.json --llm-extracted .tmp/chunks/llm_fields.json --out .tmp/extracted
 ```
+
+Always pass `--llm-extracted` with this exact path, whether or not field-extractor succeeded in Step 2 — if the file is missing or corrupt, stage4 logs a warning and falls back to the regex extractor for every chunk automatically. There's no need to conditionally omit the flag.
 
 **Expected outputs:**
 - `.tmp/extracted/`: One JSON file per chunk ID (e.g., `chunk_001.json`, `chunk_002.json`, etc.)
@@ -208,6 +227,7 @@ Next attempt: [Next scheduled time]
 | No chunks produced | Stop before classifier; report "No data to classify." |
 | Classifier times out (>15 min) | Stop; report "Classifier unavailable." Retry next cycle. |
 | Classifier output invalid | Stop; report "Classifier output malformed." Retry next cycle. |
+| Field-extractor times out (>15 min) or output invalid | **Continue anyway** — note it in the run report, proceed to Step 3 with `--llm-extracted` passed as normal; stage4 falls back to the regex extractor for every chunk automatically. Not a stop condition. |
 | Extraction build fails | Stop; report error. Previous data retained. |
 | No records extracted | Stop; report "No records produced." Previous data retained. |
 | Partial extraction (some records fail) | Continue; warn user. Some records extracted. |
@@ -224,7 +244,7 @@ Next attempt: [Next scheduled time]
 - **Python**: no pre-existing venv — Step 0 installs dependencies fresh from `requirements.txt` every run
 - **Git**: the routine's checkout must have push access to `main` on the connected repo — unverified as of Phase F, confirm on the first real run (see Step 4 error handling)
 - **Disk**: `.tmp/` directory writable, sufficient space for extracted records (~1-10MB typical)
-- **Agent availability**: Content-classifier agent must be functional and available — the routine's `allowed_tools` must include `Agent`, not just `Bash`/`Read`/`Write`/`Edit`/`Glob`/`Grep`
+- **Agent availability**: Content-classifier and field-extractor agents must be functional and available — the routine's `allowed_tools` must include `Agent`, not just `Bash`/`Read`/`Write`/`Edit`/`Glob`/`Grep`. Field-extractor failure alone degrades (see Step 2) rather than stopping the run; content-classifier failure is a hard stop.
 - **Next run**: Scheduled job will re-run on next cron cycle (interval set when the routine is created via `/schedule`; minimum 1 hour)
 
 ---
@@ -235,6 +255,7 @@ Next attempt: [Next scheduled time]
 .tmp/scraped/                                                ← Stage 1 output (raw HTML)
 .tmp/chunks/chunks.json                                       ← Stage 2 output (chunk array)
 .tmp/chunks/classified.json                                   ← Stage 3 output (classifier results)
+.tmp/chunks/llm_fields.json                                    ← Stage 3 output (field-extractor results, optional)
 .tmp/extracted/                                                ← Stage 4 output (final ExtractedRecords, undergrad-only)
 dashboard/frontend/public/data/{records,institutions}.json    ← Stage 5 output (static dashboard data, git-tracked)
 

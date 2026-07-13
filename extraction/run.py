@@ -1,16 +1,20 @@
 """CLI entry point for extraction, split into two steps because UG/PG
-routing is done by the content-classifier subagent (a Claude Code Agent
-tool call), not by this script:
+routing and (optionally) field extraction are both done by Claude Code
+Agent tool calls, not by this script:
 
     1. chunk  — read scraper/run.py's output, produce one chunk-input file
-                for the content-classifier subagent to consume.
-    2. build  — read the classifier's output file plus the same scraped
-                records, run field extraction, and write final
-                ExtractedRecord JSON (one file per source) to an out dir.
+                shared by the content-classifier and field-extractor
+                subagents.
+    2. build  — read the classifier's output file, the (optional)
+                field-extractor's output file, and the same scraped
+                records; run field extraction (LLM output wins per chunk
+                where present, regex extractor is the fallback); write
+                final ExtractedRecord JSON (one file per chunk) to an out
+                dir.
 
 Usage:
     python -m extraction.run chunk --scraped-dir .tmp/scraped --out .tmp/chunks/chunks.json
-    python -m extraction.run build --scraped-dir .tmp/scraped --classified .tmp/chunks/classified.json --out .tmp/extracted
+    python -m extraction.run build --scraped-dir .tmp/scraped --classified .tmp/chunks/classified.json --llm-extracted .tmp/chunks/llm_fields.json --out .tmp/extracted
 """
 from __future__ import annotations
 
@@ -22,7 +26,8 @@ from pathlib import Path
 from extraction.chunker import chunk_scraped_record
 from extraction.classify import load_classifier_results
 from extraction.fields import extract_constituent_college, extract_deadline, extract_fee, extract_programs
-from extraction.schema import DegreeLevel, ExtractedRecord
+from extraction.llm_fields import load_llm_field_results
+from extraction.schema import NULL_FIELD, DegreeLevel, ExtractedRecord
 
 DEFAULT_CHUNK_OUT = Path(".tmp") / "chunks" / "chunks.json"
 DEFAULT_EXTRACT_OUT = Path(".tmp") / "extracted"
@@ -63,7 +68,7 @@ def run_chunk(scraped_dir: Path, out_path: Path) -> int:
 
 
 def build_extracted_records(
-    records: list[dict], degree_levels: dict
+    records: list[dict], degree_levels: dict, llm_fields: dict[str, dict] | None = None
 ) -> tuple[list[tuple[str, ExtractedRecord]], int, int]:
     """Merge scraped records with classifier output into ExtractedRecords.
 
@@ -77,7 +82,16 @@ def build_extracted_records(
     there is nothing to gain from persisting PG data. Ambiguous chunks
     (degree_level.value is None) are kept — CLAUDE.md hard rule 5 treats
     Ambiguous as a distinct, reviewable outcome, not the same failure type as
-    Postgraduate, and it carries its own reason code for that review."""
+    Postgraduate, and it carries its own reason code for that review.
+
+    llm_fields (from extraction.llm_fields.load_llm_field_results) is field-
+    extractor subagent output keyed by chunk_id. When a chunk has an entry
+    there, its LLM-produced fields win outright — not a per-field race with
+    the regex extractor. When llm_fields is None (the step wasn't run) or a
+    specific chunk has no entry in it (the subagent skipped/omitted it), that
+    chunk falls back to the regex extractor — extraction/fields.py stays the
+    permanent zero-cost fallback so the pipeline degrades gracefully instead
+    of failing outright if the LLM step is unavailable."""
     built: list[tuple[str, ExtractedRecord]] = []
     skipped = 0
     excluded_postgraduate = 0
@@ -99,6 +113,19 @@ def build_extracted_records(
             if degree_level.value == "Postgraduate":
                 excluded_postgraduate += 1
                 continue
+
+            chunk_llm_fields = llm_fields.get(chunk.id) if llm_fields is not None else None
+            if chunk_llm_fields is not None:
+                constituent_college = chunk_llm_fields.get("constituent_college", NULL_FIELD)
+                deadline = chunk_llm_fields.get("deadline", NULL_FIELD)
+                fee = chunk_llm_fields.get("fee", NULL_FIELD)
+                programs = chunk_llm_fields.get("programs", NULL_FIELD)
+            else:
+                constituent_college = extract_constituent_college(chunk.raw_text)
+                deadline = extract_deadline(chunk.raw_text)
+                fee = extract_fee(chunk.raw_text)
+                programs = extract_programs(chunk.raw_text)
+
             extracted = ExtractedRecord(
                 institution_id=chunk.institution_id,
                 campus=chunk.campus,
@@ -106,10 +133,10 @@ def build_extracted_records(
                 fetched_at=chunk.fetched_at,
                 chunk_id=chunk.id,
                 degree_level=degree_level,
-                constituent_college=extract_constituent_college(chunk.raw_text),
-                deadline=extract_deadline(chunk.raw_text),
-                fee=extract_fee(chunk.raw_text),
-                programs=extract_programs(chunk.raw_text),
+                constituent_college=constituent_college,
+                deadline=deadline,
+                fee=fee,
+                programs=programs,
             )
             built.append((chunk.id, extracted))
     return built, skipped, excluded_postgraduate
@@ -132,7 +159,7 @@ def write_extracted_records(built: list[tuple[str, ExtractedRecord]], out_dir: P
     return len(built)
 
 
-def run_build(scraped_dir: Path, classified_path: Path, out_dir: Path) -> int:
+def run_build(scraped_dir: Path, classified_path: Path, out_dir: Path, llm_extracted_path: Path | None = None) -> int:
     records = _load_scraped_records(scraped_dir)
     try:
         degree_levels = load_classifier_results(classified_path)
@@ -140,7 +167,21 @@ def run_build(scraped_dir: Path, classified_path: Path, out_dir: Path) -> int:
         print(f"FAIL  unreadable classifier output {classified_path}: {exc}")
         return 1
 
-    built, _, excluded_postgraduate = build_extracted_records(records, degree_levels)
+    llm_fields = None
+    if llm_extracted_path is not None:
+        try:
+            llm_fields = load_llm_field_results(llm_extracted_path)
+        except (json.JSONDecodeError, OSError) as exc:
+            # Degrade, don't fail the run: this is the field-extractor's
+            # zero-cost fallback path (every chunk uses the regex extractor
+            # instead), so a missing/corrupt file here must behave exactly
+            # like --llm-extracted was never passed, not like a fatal error --
+            # the pipeline's graceful-degradation guarantee shouldn't depend
+            # on the caller correctly omitting the flag under every failure.
+            print(f"WARN  unreadable field-extractor output {llm_extracted_path}: {exc} -- falling back to regex extraction for all chunks")
+            llm_fields = None
+
+    built, _, excluded_postgraduate = build_extracted_records(records, degree_levels, llm_fields)
     written = write_extracted_records(built, out_dir)
 
     print(f"Wrote {written} extracted record(s) -> {out_dir}")
@@ -160,13 +201,17 @@ def main() -> None:
     build_p.add_argument("--scraped-dir", type=Path, default=Path(".tmp") / "scraped")
     build_p.add_argument("--classified", type=Path, required=True)
     build_p.add_argument("--out", type=Path, default=DEFAULT_EXTRACT_OUT)
+    build_p.add_argument(
+        "--llm-extracted", type=Path, default=None,
+        help="field-extractor subagent output file. When omitted, falls back to the regex extractor for every chunk.",
+    )
 
     args = parser.parse_args()
 
     if args.command == "chunk":
         sys.exit(run_chunk(args.scraped_dir, args.out))
     elif args.command == "build":
-        sys.exit(run_build(args.scraped_dir, args.classified, args.out))
+        sys.exit(run_build(args.scraped_dir, args.classified, args.out, args.llm_extracted))
 
 
 if __name__ == "__main__":
