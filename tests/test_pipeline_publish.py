@@ -22,6 +22,16 @@ import pipeline.run_full as run_full
 from scraper.config import DEFAULT_CONFIG_PATH, Institution, Source, load_institutions
 
 
+@pytest.fixture(autouse=True)
+def _no_live_firestore(monkeypatch):
+    """stage_5_publish now merges curator overrides via fetch_overrides(),
+    which makes a live Firestore REST call. Stub it to {} by default so every
+    publish test stays hermetic (no network) and behaves exactly as it did
+    before Phase K (no overrides applied). Tests that specifically exercise
+    the override merge re-patch run_full.fetch_overrides themselves."""
+    monkeypatch.setattr(run_full, "fetch_overrides", lambda *a, **k: {})
+
+
 def _write_extracted_record(extracted_dir, filename, chunk_id="giki", **overrides):
     extracted_dir.mkdir(parents=True, exist_ok=True)
     record = {
@@ -85,6 +95,29 @@ class TestStage5Publish:
         record = published[0]
         assert record["source_url"] == "https://giki.edu.pk/admissions/admissions-undergraduates/"
         assert record["deadline"] == {"value": "10 Aug 2026", "confidence": 0.85, "note": None}
+
+    def test_curator_override_is_merged_into_published_record(self, tmp_path, monkeypatch):
+        from extraction.schema import Field
+
+        extracted_dir = tmp_path / "extracted"
+        publish_dir = tmp_path / "publish"
+        # pipeline extracted a null fee for giki; a curator corrected it.
+        _write_extracted_record(extracted_dir, "giki.json", chunk_id="giki")
+        monkeypatch.setattr(
+            run_full, "fetch_overrides",
+            lambda *a, **k: {"giki": {"fee": Field(value="Rs. 3000", confidence=1.0, note="human-verified")}},
+        )
+
+        rc = run_full.stage_5_publish(extracted_dir, publish_dir)
+
+        assert rc == 0
+        published = json.loads((publish_dir / "records.json").read_text(encoding="utf-8"))
+        giki = next(r for r in published if r["chunk_id"] == "giki")
+        # curator's fee correction is baked into the static record...
+        assert giki["fee"] == {"value": "Rs. 3000", "confidence": 1.0, "note": "human-verified"}
+        # ...while the pipeline-extracted deadline (not overridden) is untouched
+        assert giki["deadline"] == {"value": "10 Aug 2026", "confidence": 0.85, "note": None}
+        assert giki["source_url"] == "https://giki.edu.pk/admissions/admissions-undergraduates/"
 
     def test_null_field_never_carries_a_default_or_confidence(self, tmp_path):
         extracted_dir = tmp_path / "extracted"

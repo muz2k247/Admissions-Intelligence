@@ -26,6 +26,7 @@ from extraction.classify import load_classifier_results
 from extraction.llm_fields import load_llm_field_results
 from extraction.run import build_extracted_records, write_extracted_records
 from extraction.schema import ExtractedRecord
+from pipeline.overrides import fetch_overrides, merge_overrides
 from scraper.config import load_institutions, iter_sources
 from scraper.fetch import build_session, fetch_source
 
@@ -282,6 +283,11 @@ def stage_5_publish(extracted_dir: Path, publish_dir: Path) -> int:
     write_extracted_records, extended here to guard zero-output the same way
     stage_2_chunk/stage_4_build already do).
 
+    Human-verified curator corrections (admin CMS, Phase K) are merged in
+    after loading and before writing: fetch_overrides() reads them from
+    Firestore, returning {} on any failure so a Firestore problem degrades
+    to publishing the pipeline-extracted values rather than failing.
+
     Returns:
         0 if publish succeeds.
         1 if extracted_dir is unreadable/missing, contains zero records,
@@ -312,6 +318,15 @@ def stage_5_publish(extracted_dir: Path, publish_dir: Path) -> int:
             file=sys.stderr,
         )
         return 1
+
+    # Merge in human-verified curator corrections (admin CMS, Phase K).
+    # fetch_overrides() returns {} on any failure, so a Firestore problem
+    # degrades to publishing the pipeline-extracted values -- never fatal.
+    overrides = fetch_overrides()
+    if overrides:
+        records = [merge_overrides(r, overrides) for r in records]
+        overridden = sum(1 for r in records if r.chunk_id in overrides)
+        print(f"Applied curator overrides to {overridden} of {len(records)} record(s).")
 
     try:
         institutions_payload = _institutions_payload()
