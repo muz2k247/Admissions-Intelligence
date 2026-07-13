@@ -100,6 +100,81 @@ class TestConfig:
             assert isinstance(source, Source)
             assert source in institution.sources
 
+    def test_load_institutions_defaults_enabled_true_when_absent(self, tmp_path):
+        # Test the default against a synthetic fixture, NOT the live registry:
+        # a legitimate future use of this very feature (setting enabled: false
+        # on a real institution) must not break this test.
+        config_path = tmp_path / "institutions.yaml"
+        config_path.write_text(
+            """
+institutions:
+  - id: no_enabled_key
+    name: Institution Without Enabled Key
+    sources:
+      - campus: null
+        url: "https://example.edu"
+        format: html
+""",
+            encoding="utf-8",
+        )
+
+        institutions = load_institutions(config_path)
+
+        assert len(institutions) == 1
+        assert institutions[0].enabled is True, (
+            "an institution entry with no `enabled` key must default to enabled"
+        )
+
+    def test_load_institutions_respects_explicit_enabled_false(self, tmp_path):
+        config_path = tmp_path / "institutions.yaml"
+        config_path.write_text(
+            """
+institutions:
+  - id: active_inst
+    name: Active Institution
+    sources:
+      - campus: null
+        url: "https://active.example.edu"
+        format: html
+  - id: disabled_inst
+    name: Disabled Institution
+    enabled: false
+    sources:
+      - campus: null
+        url: "https://disabled.example.edu"
+        format: html
+""",
+            encoding="utf-8",
+        )
+
+        institutions = load_institutions(config_path)
+
+        active = next(i for i in institutions if i.id == "active_inst")
+        disabled = next(i for i in institutions if i.id == "disabled_inst")
+        assert active.enabled is True
+        assert disabled.enabled is False
+
+    def test_iter_sources_skips_disabled_institutions_but_load_institutions_still_returns_them(self):
+        active = Institution(
+            id="active", name="Active", admitting_body=False, ug_pg_mixed=False,
+            sources=[Source(institution_id="active", campus=None, url="https://a.example", format="html")],
+            enabled=True,
+        )
+        disabled = Institution(
+            id="disabled", name="Disabled", admitting_body=False, ug_pg_mixed=False,
+            sources=[Source(institution_id="disabled", campus=None, url="https://b.example", format="html")],
+            enabled=False,
+        )
+
+        # Listing code (e.g. the admin panel / _institutions_payload) needs to
+        # see disabled institutions too, so it can display and re-enable them.
+        all_institutions = [active, disabled]
+        assert len(all_institutions) == 2
+
+        # But the scraper's only entry point must skip disabled ones.
+        pairs = list(iter_sources(all_institutions))
+        assert [inst.id for inst, _ in pairs] == ["active"]
+
 
 # ---------------------------------------------------------------------------
 # fetch.py

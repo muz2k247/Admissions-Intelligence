@@ -49,8 +49,10 @@ def stage_1_scrape(out_dir: Path, institution_filter: str | None = None) -> int:
     """Stage 1: Fetch raw HTML/PDF from all configured sources.
 
     Returns:
-        0 if all sources succeed or at least one succeeds.
-        1 if all sources fail or fatal error.
+        0 if at least one source was attempted and at least one succeeded.
+        1 if zero sources were attempted at all (every institution disabled,
+          or --institution matched nothing), or every attempted source
+          failed, or a fatal error.
     """
     print(f"\n{'='*60}")
     print("STAGE 1: SCRAPING")
@@ -59,6 +61,10 @@ def stage_1_scrape(out_dir: Path, institution_filter: str | None = None) -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
     institutions = load_institutions()
     session = build_session()
+
+    disabled = [i.id for i in institutions if not i.enabled]
+    if disabled:
+        print(f"[SKIP] {len(disabled)} institution(s) disabled in config: {', '.join(disabled)}")
 
     # On a full run, clear stale scraped files first: a source renamed or
     # removed in config (e.g. UET's Taxila campus becoming its own institution)
@@ -71,9 +77,11 @@ def stage_1_scrape(out_dir: Path, institution_filter: str | None = None) -> int:
 
     exit_code = 0
     ok_count = 0
+    attempted = 0
     for institution, source in iter_sources(institutions):
         if institution_filter and institution.id != institution_filter:
             continue
+        attempted += 1
 
         result = fetch_source(source, session=session)
         record = {
@@ -103,7 +111,12 @@ def stage_1_scrape(out_dir: Path, institution_filter: str | None = None) -> int:
             print(f"OK    {institution.id} ({campus_label})")
             ok_count += 1
 
-    print(f"\nStage 1 summary: {ok_count} sources processed successfully")
+    if attempted == 0:
+        reason = f"--institution '{institution_filter}' matched no enabled institution" if institution_filter else "0 institutions are enabled in config"
+        print(f"ERROR: No sources attempted ({reason}).", file=sys.stderr)
+        return 1
+
+    print(f"\nStage 1 summary: {ok_count} of {attempted} attempted source(s) processed successfully")
     if exit_code != 0:
         print(f"[WARN] Some sources failed; {ok_count} succeeded. Proceeding with partial data.")
 
@@ -201,6 +214,7 @@ def _institutions_payload() -> list[dict]:
             "admitting_body": inst.admitting_body,
             "ug_pg_mixed": inst.ug_pg_mixed,
             "campuses": [s.campus for s in inst.sources if s.campus is not None],
+            "enabled": inst.enabled,
         }
         for inst in institutions
     ]

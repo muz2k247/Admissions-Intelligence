@@ -51,6 +51,10 @@ Human-readable companion to `config/institutions.yaml`, which is the source of t
 - **Genuinely separate campus sources (model as MULTIPLE sources)**: UET (Lahore vs Taxila), Air University (main vs Karachi).
 - **Admitting-body (one portal allocates across many colleges; college is a per-record result)**: UHS, NUMS.
 
+## Pausing an institution (`enabled: false`)
+
+Any institution entry may carry an optional `enabled` key (defaults to `true`). Setting `enabled: false` pauses scraping for that institution — useful when a portal is temporarily broken or out of admissions season — without deleting its registry entry. Behaviour: the scraper skips it (logging an explicit `[SKIP] … disabled in config` line), and on the next full pipeline run its records drop out of the published `records.json` entirely. This **pauses monitoring; it does not retain last-known-good records**. The dashboard does not yet treat a paused institution differently from one with no current records — a known follow-up. Re-enable by removing the key or setting it `true`.
+
 ## What still can't be guaranteed
 
 Verification confirms URLs resolve and page structure/format as of the check. It does **not** freeze deadlines or fees — those change through the admission season and must be read live by the scraper, never hardcoded here. That separation is the real accuracy safeguard.

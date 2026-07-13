@@ -315,6 +315,7 @@ class TestStage5PublishGaps:
                 "admitting_body": False,
                 "ug_pg_mixed": False,
                 "campuses": [],
+                "enabled": True,
             }
         ]
 

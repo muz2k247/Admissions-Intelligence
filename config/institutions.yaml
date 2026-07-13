@@ -12,6 +12,12 @@
 #   name: full institution name
 #   admitting_body: true if this institution admits on behalf of other named colleges
 #   ug_pg_mixed: true if UG and PG appear together on the same pages (needs content-level filtering)
+#   enabled: optional, defaults to true. Set false to PAUSE scraping this institution
+#            (e.g. its portal is broken or out of admissions season) without deleting the
+#            entry. A disabled institution is skipped by the scraper and, on the next full
+#            pipeline run, drops out of the published records.json entirely — this pauses
+#            monitoring, it does not preserve its last-known-good records. Re-enable by
+#            removing the key or setting it true.
 #   sources: list of scrape targets
 #     campus: null when a single unified portal handles all campuses (campus chosen in-application),
 #             OR a campus name when that campus has a genuinely distinct portal/URL
