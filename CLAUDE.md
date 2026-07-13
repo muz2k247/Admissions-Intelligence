@@ -109,6 +109,8 @@ Use `research` for institution site investigation (prefer official `.edu.pk` dom
 
 **Thought → Action → Review**: for any change touching the hard rules above (null-handling, confidence scoring, UG/PG routing, source URL retention), state what you're checking for before you act, then verify the result against that stated check before moving on — don't just run the subagent loop and assume PASS means done.
 
+**Proceed in chunks, commit after each chunk.** When executing a multi-step plan, don't batch several sub-steps' worth of changes into one commit hoping to review/ship them together at the end. Split the work into the smallest reviewable units the plan describes, and for each one: complete it, run the subagent loop above (code-reviewer → qa → fix → ship), then commit — before starting the next unit. This applies to every plan, not just a specific phase; never treat it as optional just because a phase "isn't done yet."
+
 ## Repo structure
 ```
 .claude/agents/       subagent definitions
@@ -129,7 +131,7 @@ The dashboard's default view is Undergraduate-only (no PDF export — dropped as
 **Verify dashboard changes visually, not just with tests.** Before shipping any change under `dashboard/`, run `npm run screenshots` from the repo root — it builds the dashboard, serves it, and captures desktop + mobile screenshots to `.tmp/screenshots/` (Playwright; config in `playwright.config.js`, spec in `screenshots/`). Open both images and confirm the change renders correctly against the non-negotiables above: no horizontal scroll (the spec asserts this automatically), adaptive layout at each breakpoint, readable contrast, and adequate touch targets. Screenshots run only against the local preview server, never a live site, and are a local/agent verification aid — deliberately not a CI gate.
 
 ## Commit conventions
-Commit after each phase is functionally complete and passes the code-reviewer/qa loop — not mid-phase. Phases for this stage of the project:
+Commit after each chunk of work is functionally complete and passes the code-reviewer/qa loop (see Subagents' "Proceed in chunks" rule above) — a phase below is usually made of several such chunks, each gets its own commit rather than one commit at the end of the whole phase. Phases for this stage of the project:
 - Phase A: institution registry (`config/institutions.yaml`, `docs/institution_registry.md`)
 - Phase B: scraper (config-driven, HTML + PDF fallback)
 - Phase C: extraction schema + content-classifier integration
