@@ -1,0 +1,42 @@
+rules_version = '2';
+
+// Security model for the admin CMS (Phase K).
+//
+// The `overrides` collection holds human-verified curator field corrections
+// keyed by chunk_id. It is PUBLIC-READ on purpose: the pipeline reads it
+// unauthenticated at publish time (pipeline/overrides.py) with no credential.
+// The corrected field values are public anyway (they get merged into the
+// already-public records.json). One caveat: a curator edit also stores audit
+// metadata (original, verified_by, verified_at) that does NOT reach
+// records.json but IS readable here -- Firestore rules can't restrict reads
+// per-field. That's acceptable only if that metadata is non-sensitive:
+// verified_by MUST be an opaque Firebase UID (never an email/name), and
+// verified_at is just a timestamp. The admin app must write it that way.
+// Security lives entirely in the WRITE rule: only signed-in curators on an
+// explicit UID allowlist may write.
+//
+// The allowlist is empty until real curator UIDs are known (a UID only exists
+// after that person first signs into the admin app). Fill it in via the
+// Firebase Console / a rules deploy once you have them -- with the list empty,
+// NO ONE can write, which is the correct fail-closed default. Never widen the
+// write rule to `if request.auth != null` (that would let any Google account
+// on earth write); keep it pinned to specific UIDs.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /overrides/{chunkId} {
+      allow read: if true;
+
+      allow write: if request.auth != null
+        && request.auth.uid in [
+          // "<curator-uid-1>",
+          // "<curator-uid-2>",
+        ];
+    }
+
+    // Deny everything else by default -- no other collection exists or should.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
