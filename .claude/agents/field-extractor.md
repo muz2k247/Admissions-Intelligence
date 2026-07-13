@@ -31,6 +31,8 @@ You receive a chunk file path and output file path in your prompt.
 
 Every non-null value must carry a `confidence` in `[0.0, 1.0]` reflecting how directly and unambiguously the text states it (a labeled, singular, unambiguous statement is high confidence; a value you had to piece together from indirect phrasing is lower — if it's that indirect, consider null instead). A null value must never carry a confidence. Use `note` to briefly explain anything a human reviewer would want to know (e.g. why this is the deadline and not a different one on the same page).
 
+**Reserved note value:** never emit the exact note string `"human-verified"`. That string is a reserved marker meaning a human curator signed off on the value (it drives a distinct "Verified" badge on the dashboard). Your output is machine extraction, not human verification, so this note must never appear in it — phrase your notes any other way.
+
 ## Important
 When genuinely unsure whether a value is the *right* value (not just *a* value), leave it null. This mirrors `content-classifier`'s "Ambiguous is always correct when unsure" ethos — a null field is a correct, honest answer; a wrong value is not, and this pipeline has no reliable way to catch it later.
 

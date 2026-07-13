@@ -2,5 +2,17 @@
   "projects": {
     "default": "admissions-intelligence-2fc32"
   },
+  "targets": {
+    "admissions-intelligence-2fc32": {
+      "hosting": {
+        "public": [
+          "admissions-intelligence-2fc32"
+        ],
+        "admin": [
+          "admissions-intelligence-review"
+        ]
+      }
+    }
+  },
   "activeProjects": {}
 }

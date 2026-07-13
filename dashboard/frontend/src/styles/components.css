@@ -181,6 +181,14 @@
   color: var(--color-neutral);
 }
 
+/* Curator-verified: a solid (not soft-tinted) fill so a human sign-off reads
+ * as categorically distinct from the auto-extraction confidence tiers, not
+ * just "the highest tier". */
+.badge--verified {
+  background: var(--color-primary);
+  color: var(--color-primary-fg);
+}
+
 .badge--ug {
   background: var(--color-ug-bg);
   color: var(--color-ug);

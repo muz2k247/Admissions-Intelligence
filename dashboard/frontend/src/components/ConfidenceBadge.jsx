@@ -13,6 +13,20 @@ export default function ConfidenceBadge({ field }) {
     );
   }
 
+  // A curator-verified correction (admin CMS): note is the exact machine
+  // marker "human-verified" (never free text), so it reads as a distinct
+  // "Verified" state rather than just a numeric-confidence tier. This is
+  // checked before the confidence tiers -- a human sign-off outranks the
+  // auto-extraction confidence score.
+  if (field.note === "human-verified") {
+    return (
+      <span className="badge badge--verified" title="Manually verified by a curator">
+        <CheckIcon />
+        Verified
+      </span>
+    );
+  }
+
   const { confidence } = field;
   if (confidence >= 0.8) {
     return (
