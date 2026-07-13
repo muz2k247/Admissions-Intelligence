@@ -111,6 +111,8 @@ Use `research` for institution site investigation (prefer official `.edu.pk` dom
 
 **Proceed in chunks, commit after each chunk.** When executing a multi-step plan, don't batch several sub-steps' worth of changes into one commit hoping to review/ship them together at the end. Split the work into the smallest reviewable units the plan describes, and for each one: complete it, run the subagent loop above (code-reviewer → qa → fix → ship), then commit — before starting the next unit. This applies to every plan, not just a specific phase; never treat it as optional just because a phase "isn't done yet."
 
+**Proceed phase by phase — pause between phases, don't chain through all of them.** This is a separate rule from the chunk rule above and operates one level up: a chunk is a sub-step *within* a phase (commit after each, no pause needed); a phase (the lettered A/B/C.../H/I/J... units this doc's Commit conventions section tracks) is a larger unit of work, and finishing one is a natural checkpoint — stop there and let the user weigh in (confirm direction, redirect scope, or explicitly say "keep going") before starting the next phase, rather than autonomously running straight through several phases in one sitting. This holds even when a plan already lays out every phase in advance and even when nothing so far has surfaced a problem — the checkpoint isn't conditional on hitting an issue.
+
 ## Repo structure
 ```
 .claude/agents/       subagent definitions
