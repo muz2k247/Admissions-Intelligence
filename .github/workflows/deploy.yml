@@ -65,6 +65,11 @@ jobs:
         id: build_admin
         continue-on-error: true
         working-directory: dashboard/admin
+        env:
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: admissions-intelligence-2fc32.firebaseapp.com
+          VITE_FIREBASE_PROJECT_ID: admissions-intelligence-2fc32
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
         run: |
           npm ci
           npm run build
