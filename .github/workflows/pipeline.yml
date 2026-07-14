@@ -1,0 +1,69 @@
+name: Pipeline — scrape, classify, extract, publish
+
+# Runs the full 5-stage data pipeline on a weekly schedule.
+# Stage 3 (classification + field extraction) calls the Gemini API directly
+# via pipeline/gemini_classify.py and pipeline/gemini_extract.py.
+#
+# Pushing new data under dashboard/frontend/public/data/** triggers the
+# existing deploy.yml workflow to build and deploy to Firebase Hosting.
+#
+# Manual trigger: Actions tab → "Pipeline" → "Run workflow" button.
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'  # Every Monday at 6 AM UTC (11 AM PKT)
+  workflow_dispatch: {}   # Manual trigger
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          # Only install the Playwright browser if a source needs JS rendering.
+          if grep -q "render: js" config/institutions.yaml; then
+            playwright install chromium
+          fi
+
+      - name: 'Stage 1-2: Scrape + Chunk'
+        run: python -m pipeline.run_full stage1_2 --out-scraped .tmp/scraped --out-chunks .tmp/chunks/chunks.json
+
+      - name: 'Stage 3a: Classify via Gemini'
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python pipeline/gemini_classify.py --chunks .tmp/chunks/chunks.json --out .tmp/chunks/classified.json
+
+      - name: 'Stage 3b: Extract fields via Gemini (best-effort)'
+        continue-on-error: true
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python pipeline/gemini_extract.py --chunks .tmp/chunks/chunks.json --out .tmp/chunks/llm_fields.json
+
+      - name: 'Stage 4: Extraction build'
+        run: python -m pipeline.run_full stage4 --out-scraped .tmp/scraped --classified .tmp/chunks/classified.json --llm-extracted .tmp/chunks/llm_fields.json --out .tmp/extracted
+
+      - name: 'Stage 5: Publish static data'
+        run: python -m pipeline.run_full stage5 --extracted .tmp/extracted
+
+      - name: Commit and push if data changed
+        run: |
+          git config user.name "Admissions Intelligence Pipeline"
+          git config user.email "pipeline@admissions-intelligence.local"
+          git add dashboard/frontend/public/data/records.json dashboard/frontend/public/data/institutions.json
+          if git diff --cached --quiet; then
+            echo "No data changes — skipping push."
+          else
+            git commit -m "chore: publish pipeline data ($(date -u +%Y-%m-%dT%H:%M:%SZ))"
+            git push origin main
+          fi
