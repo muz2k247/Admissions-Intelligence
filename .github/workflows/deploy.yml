@@ -19,6 +19,7 @@ on:
       - "dashboard/admin/**"
       - "firestore.rules"
       - "firebase.json"
+      - ".github/workflows/**"
 
 jobs:
   deploy:
