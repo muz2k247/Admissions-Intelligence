@@ -2,7 +2,7 @@
 
 Stages 1, 2, 4, 5 run here (deterministic Python). Stage 3 (classifier) and the
 field-extractor step are both invoked separately by the calling orchestration
-prompt via Claude Code Agent, against the same stage-2 chunks file.
+prompt via Gemini Agent, against the same stage-2 chunks file.
 
 Usage:
     Stage 1-2: python -m pipeline.run_full stage1_2 --out-scraped .tmp/scraped --out-chunks .tmp/chunks/chunks.json

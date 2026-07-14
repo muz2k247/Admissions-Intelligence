@@ -79,5 +79,5 @@ though it never reaches `records.json`. Keep that metadata non-sensitive:
 - These steps are the admin-CMS analogue of Phase F's one-time deploy-token
   minting: a human does them in the console, never an agent, and no secret from
   them ever enters this repo.
-- The `ANTHROPIC_API_KEY` GitHub Actions secret (for the CI pipeline) is a
+- The `GEMINI_API_KEY` GitHub Actions secret (for the CI pipeline) is a
   separate Phase L concern, documented there.

@@ -1,7 +1,7 @@
 """Reads a field-extractor subagent output file and turns it into per-field
 Field results keyed by chunk id.
 
-The field-extractor subagent is invoked out-of-band (a Claude Code Agent
+The field-extractor subagent is invoked out-of-band (a Gemini Agent
 tool call, mirroring content-classifier) -- see extraction/run.py's `chunk`
 step for producing its shared input and pipeline/run_full.py's stage 4 for
 consuming this module's output.

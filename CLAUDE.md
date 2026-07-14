@@ -65,7 +65,7 @@ The **public dashboard** has no backend and no database — it fetches pipeline-
 
 Phase K reintroduced Firestore **narrowly, for the admin CMS's write path only** — a genuinely different use case Phase E never evaluated (Phase E only killed a live read API). This is NOT the discarded "Phase G" drift: 1–2 curators sign in (Firebase Auth) and write field corrections to an `overrides` collection; the pipeline reads that collection **unauthenticated** at publish time (`pipeline/overrides.py`) and bakes the corrections into the static `records.json`. The public dashboard still never touches Firestore — it stays 100% static. Security is enforced by `firestore.rules` (public read on `overrides`, writes locked to a curator UID allowlist), not by key secrecy, so the pipeline holds no Firestore credential. If you're a fresh agent tempted to "clean up" this Firestore usage as contradicting the no-database rule: don't — it's sanctioned and scoped; see `docs/admin_cms_setup.md`.
 
-The pipeline and dashboard need essentially no secrets to run locally. Credentials in play: a Firebase Hosting deploy token and (Phase L) an `ANTHROPIC_API_KEY` for the CI pipeline — both are GitHub Actions repository secrets, never files in this repo. The scheduled pipeline routine runs in an isolated cloud sandbox with no access to local env vars, so it never holds the deploy token — a separate GitHub Actions workflow (`.github/workflows/deploy.yml`) does the actual deploy, authenticated via a `FIREBASE_TOKEN` GitHub Actions repository secret.
+The pipeline and dashboard need essentially no secrets to run locally. Credentials in play: a Firebase Hosting deploy token and (Phase L) a `GEMINI_API_KEY` for the CI pipeline — both are GitHub Actions repository secrets, never files in this repo. The scheduled pipeline routine runs in an isolated cloud sandbox with no access to local env vars, so it never holds the deploy token — a separate GitHub Actions workflow (`.github/workflows/deploy.yml`) does the actual deploy, authenticated via a `FIREBASE_TOKEN` GitHub Actions repository secret.
 
 1. **Never commit secrets to git.** This includes:
    - Any `.env*` file (`.env`, `.env.production`, etc.) — never commit one, full stop, even if its current contents look like a harmless placeholder. The file pattern itself is what's excluded, not a judgment call about today's contents.
@@ -80,7 +80,7 @@ The pipeline and dashboard need essentially no secrets to run locally. Credentia
 3. **Never log, print, or mention secrets in any form:**
    - Don't include secret/token values in error messages, print statements, or orchestration prompt output
    - Don't mention secrets in commit messages, PR descriptions, or code comments
-   - Don't paste secrets in conversations with Claude or any LLM (I will never ask for them)
+   - Don't paste secrets in conversations with Gemini or any LLM (I will never ask for them)
 
 4. **Never hardcode secrets in code.**
 
@@ -107,7 +107,7 @@ Defined in `.claude/agents/`. Follow the design/build loop for any non-trivial c
 2. Spawn `code-reviewer` — reports issues, does not fix.
 3. Spawn `qa` — writes and runs tests, does not fix.
 4. Parent agent applies fixes from both reports.
-5. Ship only after both pass. **For any change to the dashboard, also run the screenshot verification (`npm run screenshots` — see Presentation layer below) and visually inspect the desktop + mobile captures before shipping; passing tests alone do not prove the UI renders correctly.**
+5. Ship only after both pass.
 
 Use `research` for institution site investigation (prefer official `.edu.pk` domains over aggregators; timestamp anything deadline/fee-related). Use `content-classifier` for UG/PG routing on scraped chunks — `Ambiguous` results carry a reason code; don't treat all `Ambiguous` items as the same failure type.
 
@@ -133,8 +133,6 @@ tests/fixtures/<institution>/   saved HTML/PDF for QA — never test against liv
 The dashboard must work flawlessly on both desktop and mobile — not desktop-first with mobile as an afterthought. Mobile-first responsive layout, no horizontal scroll, adaptive navigation by breakpoint, and accessible contrast/touch targets are non-negotiable, not nice-to-haves. If a `ui-ux-pro-max`-style design skill is available in the environment, use it for any UI decision (layout, component, styling, chart) — it already treats mobile+desktop as one system rather than two separate builds.
 
 The dashboard's default view is Undergraduate-only (no PDF export — dropped as unnecessary scope). Ambiguous records are reachable only via an explicit opt-in filter for manual review, never blended into the default view alongside Undergraduate.
-
-**Verify dashboard changes visually, not just with tests.** Before shipping any change under `dashboard/`, run `npm run screenshots` from the repo root — it builds the dashboard, serves it, and captures desktop + mobile screenshots to `.tmp/screenshots/` (Playwright; config in `playwright.config.js`, spec in `screenshots/`). Open both images and confirm the change renders correctly against the non-negotiables above: no horizontal scroll (the spec asserts this automatically), adaptive layout at each breakpoint, readable contrast, and adequate touch targets. Screenshots run only against the local preview server, never a live site, and are a local/agent verification aid — deliberately not a CI gate.
 
 ## Commit conventions
 Commit after each chunk of work is functionally complete and passes the code-reviewer/qa loop (see Subagents' "Proceed in chunks" rule above) — a phase below is usually made of several such chunks, each gets its own commit rather than one commit at the end of the whole phase. Phases for this stage of the project:

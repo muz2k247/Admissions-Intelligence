@@ -1,5 +1,5 @@
 """CLI entry point for extraction, split into two steps because UG/PG
-routing and (optionally) field extraction are both done by Claude Code
+routing and (optionally) field extraction are both done by Gemini
 Agent tool calls, not by this script:
 
     1. chunk  — read scraper/run.py's output, produce one chunk-input file

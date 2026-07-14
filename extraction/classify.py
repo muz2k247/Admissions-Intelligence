@@ -1,7 +1,7 @@
 """Reads a content-classifier subagent output file and turns it into
 DegreeLevel results keyed by chunk id.
 
-The content-classifier subagent is invoked out-of-band (it's a Claude Code
+The content-classifier subagent is invoked out-of-band (it's a Gemini Agent
 Agent tool call, not something this module calls directly) — see
 extraction/run.py's `chunk` step for producing its input and the `build`
 step for consuming its output.

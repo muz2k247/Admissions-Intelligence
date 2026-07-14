@@ -3,7 +3,7 @@
 **Context**: This prompt is designed to be run as a scheduled cloud routine (via the `/schedule` skill / `RemoteTrigger`). It orchestrates all five pipeline stages end-to-end:
 1. **Stage 1**: Scrape institutions
 2. **Stage 2**: Chunk for classification
-3. **Stage 3**: Content-classifier (Claude agent)
+3. **Stage 3**: Content-classifier (Gemini agent)
 4. **Stage 4**: Extract and build final records (undergrad-only — Postgraduate-classified chunks are excluded here, not just hidden downstream)
 5. **Stage 5**: Build & publish static data (writes `dashboard/frontend/public/data/{records,institutions}.json`), then commit and push to `main`
 
