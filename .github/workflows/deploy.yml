@@ -20,6 +20,7 @@ on:
       - "firestore.rules"
       - "firebase.json"
       - ".github/workflows/**"
+  workflow_call:
 
 jobs:
   deploy:

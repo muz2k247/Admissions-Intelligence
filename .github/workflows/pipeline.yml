@@ -69,3 +69,8 @@ jobs:
             git commit -m "chore: publish pipeline data ($(date -u +%Y-%m-%dT%H:%M:%SZ))"
             git push origin main
           fi
+
+  deploy:
+    needs: pipeline
+    uses: ./.github/workflows/deploy.yml
+    secrets: inherit
