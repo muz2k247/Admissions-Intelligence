@@ -30,7 +30,7 @@ from google import genai
 
 _DEFAULT_CHUNKS = Path(".tmp") / "chunks" / "chunks.json"
 _DEFAULT_OUT = Path(".tmp") / "chunks" / "llm_fields.json"
-_MODEL = "gemini-2.5-flash"
+_MODEL = "gemini-2.0-flash"
 _BATCH_SIZE = 40  # Smaller batches — extraction prompt is heavier than classification.
 _CONFIG_PATH = Path("config") / "institutions.yaml"
 
