@@ -24,7 +24,7 @@ from google import genai
 
 _DEFAULT_CHUNKS = Path(".tmp") / "chunks" / "chunks.json"
 _DEFAULT_OUT = Path(".tmp") / "chunks" / "classified.json"
-_MODEL = "gemini-2.0-flash"
+_MODEL = "gemini-3.5-flash"
 
 # Max chunks per API call to stay within context limits.  Most sources
 # produce a handful of chunks each, so 15 institutions × ~3 chunks ≈ 45
