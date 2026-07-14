@@ -6,77 +6,88 @@
     "ug_pg_mixed": true,
     "campuses": [
       "Lahore (Main + sub-campuses)"
-    ]
+    ],
+    "enabled": true
   },
   {
     "id": "uet_taxila",
     "name": "University of Engineering & Technology, Taxila",
     "admitting_body": false,
     "ug_pg_mixed": true,
-    "campuses": []
+    "campuses": [],
+    "enabled": true
   },
   {
     "id": "nust",
     "name": "National University of Sciences & Technology",
     "admitting_body": false,
     "ug_pg_mixed": false,
-    "campuses": []
+    "campuses": [],
+    "enabled": true
   },
   {
     "id": "giki",
     "name": "Ghulam Ishaq Khan Institute",
     "admitting_body": false,
     "ug_pg_mixed": false,
-    "campuses": []
+    "campuses": [],
+    "enabled": true
   },
   {
     "id": "pieas",
     "name": "Pakistan Institute of Engineering and Applied Sciences",
     "admitting_body": false,
     "ug_pg_mixed": true,
-    "campuses": []
+    "campuses": [],
+    "enabled": true
   },
   {
     "id": "fast_nu",
     "name": "National University of Computer and Emerging Sciences (FAST-NU)",
     "admitting_body": false,
     "ug_pg_mixed": true,
-    "campuses": []
+    "campuses": [],
+    "enabled": true
   },
   {
     "id": "pu",
     "name": "University of the Punjab",
     "admitting_body": false,
     "ug_pg_mixed": true,
-    "campuses": []
+    "campuses": [],
+    "enabled": true
   },
   {
     "id": "comsats",
     "name": "COMSATS University Islamabad",
     "admitting_body": false,
     "ug_pg_mixed": true,
-    "campuses": []
+    "campuses": [],
+    "enabled": true
   },
   {
     "id": "lums",
     "name": "Lahore University of Management Sciences",
     "admitting_body": false,
     "ug_pg_mixed": true,
-    "campuses": []
+    "campuses": [],
+    "enabled": true
   },
   {
     "id": "itu",
     "name": "Information Technology University",
     "admitting_body": false,
     "ug_pg_mixed": true,
-    "campuses": []
+    "campuses": [],
+    "enabled": true
   },
   {
     "id": "ist",
     "name": "Institute of Space Technology",
     "admitting_body": false,
     "ug_pg_mixed": true,
-    "campuses": []
+    "campuses": [],
+    "enabled": true
   },
   {
     "id": "air_university",
@@ -86,21 +97,24 @@
     "campuses": [
       "Islamabad & Punjab campuses",
       "Karachi"
-    ]
+    ],
+    "enabled": true
   },
   {
     "id": "uhs",
     "name": "University of Health Sciences",
     "admitting_body": true,
     "ug_pg_mixed": true,
-    "campuses": []
+    "campuses": [],
+    "enabled": true
   },
   {
     "id": "nums",
     "name": "National University of Medical Sciences",
     "admitting_body": true,
     "ug_pg_mixed": true,
-    "campuses": []
+    "campuses": [],
+    "enabled": true
   },
   {
     "id": "aku",
@@ -109,13 +123,15 @@
     "ug_pg_mixed": true,
     "campuses": [
       "Pakistan (Karachi) \u2014 MBBS"
-    ]
+    ],
+    "enabled": true
   },
   {
     "id": "bahria",
     "name": "Bahria University",
     "admitting_body": false,
     "ug_pg_mixed": true,
-    "campuses": []
+    "campuses": [],
+    "enabled": true
   }
 ]
