@@ -30,10 +30,6 @@ export default function ReviewScreen({ user, onLogOut }) {
         </div>
       </header>
 
-      <p className="muted note">
-        Corrections are saved to Firestore and appear on the public dashboard
-        after the next pipeline publish — not instantly.
-      </p>
 
       {error && <p className="error" role="alert">{error}</p>}
       {!error && records === null && <p className="muted">Loading records…</p>}
