@@ -22,6 +22,12 @@ from pipeline.overrides import _OverrideEntry
 @pytest.fixture(autouse=True)
 def _no_live_firestore(monkeypatch):
     monkeypatch.setattr(run_full, "fetch_overrides", lambda *a, **k: {})
+    # (Phase R) _institutions_payload() now resolves institutions via
+    # load_merged_institutions(), which makes a live Firestore REST call
+    # internally (fetch_institution_docs()) unless stubbed here too. This
+    # file doesn't assert on institutions.json's contents, so an empty list
+    # is fine.
+    monkeypatch.setattr(run_full, "load_merged_institutions", lambda *a, **k: [])
 
 
 def _write_extracted_record(extracted_dir, filename, chunk_id="giki", institution_id="giki", deadline_confidence=0.85, **overrides):

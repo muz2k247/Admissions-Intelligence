@@ -27,9 +27,10 @@ from extraction.llm_fields import load_llm_field_results
 from extraction.review_gate import content_hash, flagged_fields, needs_review
 from extraction.run import build_extracted_records, write_extracted_records
 from extraction.schema import ExtractedRecord
+from pipeline.institutions_registry import load_merged_institutions
 from pipeline.overrides import fetch_overrides, merge_overrides
 from pipeline.review import fetch_review_decisions, fetch_review_settings
-from scraper.config import load_institutions, iter_sources
+from scraper.config import iter_sources
 from scraper.fetch import build_session, fetch_source
 
 DEFAULT_SCRAPED_DIR = Path(".tmp") / "scraped"
@@ -110,7 +111,7 @@ def stage_1_scrape(out_dir: Path, institution_filter: str | None = None) -> int:
     print(f"{'='*60}")
 
     out_dir.mkdir(parents=True, exist_ok=True)
-    institutions = load_institutions()
+    institutions = load_merged_institutions()
     session = build_session()
 
     disabled = [i.id for i in institutions if not i.enabled]
@@ -294,7 +295,7 @@ def stage_4_build(scraped_dir: Path, classified_path: Path, out_dir: Path, llm_e
 
 
 def _institutions_payload() -> list[dict]:
-    institutions = load_institutions()
+    institutions = load_merged_institutions()
     return [
         {
             "id": inst.id,

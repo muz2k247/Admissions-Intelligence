@@ -50,7 +50,7 @@ class TestStage1ScrapeEnabledEndToEnd:
 
     def test_disabled_institution_never_reaches_fetch_source(self, tmp_path, monkeypatch):
         out_dir = tmp_path / "scraped"
-        monkeypatch.setattr(run_full, "load_institutions", lambda: self._two_institutions())
+        monkeypatch.setattr(run_full, "load_merged_institutions", lambda: self._two_institutions())
         calls = []
         monkeypatch.setattr(run_full, "fetch_source", _fake_fetch_source_factory(calls))
         monkeypatch.setattr(run_full, "build_session", lambda: object())
@@ -62,7 +62,7 @@ class TestStage1ScrapeEnabledEndToEnd:
 
     def test_disabled_institution_produces_no_scraped_output_file(self, tmp_path, monkeypatch):
         out_dir = tmp_path / "scraped"
-        monkeypatch.setattr(run_full, "load_institutions", lambda: self._two_institutions())
+        monkeypatch.setattr(run_full, "load_merged_institutions", lambda: self._two_institutions())
         monkeypatch.setattr(run_full, "fetch_source", _fake_fetch_source_factory([]))
         monkeypatch.setattr(run_full, "build_session", lambda: object())
 
@@ -78,7 +78,7 @@ class TestStage1ScrapeEnabledEndToEnd:
         # log -- but only in that SKIP line, never in a per-institution
         # OK/processing line, since iter_sources() still never yields it.
         out_dir = tmp_path / "scraped"
-        monkeypatch.setattr(run_full, "load_institutions", lambda: self._two_institutions())
+        monkeypatch.setattr(run_full, "load_merged_institutions", lambda: self._two_institutions())
         monkeypatch.setattr(run_full, "fetch_source", _fake_fetch_source_factory([]))
         monkeypatch.setattr(run_full, "build_session", lambda: object())
 
@@ -101,7 +101,7 @@ class TestStage1ScrapeEnabledEndToEnd:
         # naming it, whereas a filtered-out (but enabled) institution produces
         # no such line -- it just isn't the one selected this run.
         out_dir_disabled = tmp_path / "scraped_disabled_case"
-        monkeypatch.setattr(run_full, "load_institutions", lambda: self._two_institutions())
+        monkeypatch.setattr(run_full, "load_merged_institutions", lambda: self._two_institutions())
         monkeypatch.setattr(run_full, "fetch_source", _fake_fetch_source_factory([]))
         monkeypatch.setattr(run_full, "build_session", lambda: object())
         run_full.stage_1_scrape(out_dir_disabled)
@@ -122,7 +122,7 @@ class TestStage1ScrapeEnabledEndToEnd:
             ),
         ]
         out_dir_filtered = tmp_path / "scraped_filtered_case"
-        monkeypatch.setattr(run_full, "load_institutions", lambda: both_enabled)
+        monkeypatch.setattr(run_full, "load_merged_institutions", lambda: both_enabled)
         monkeypatch.setattr(run_full, "fetch_source", _fake_fetch_source_factory([]))
         run_full.stage_1_scrape(out_dir_filtered, institution_filter="active_inst")
         filtered_case_out = capsys.readouterr().out
@@ -152,7 +152,7 @@ class TestStage1ScrapeEnabledEndToEnd:
                 enabled=False,
             ),
         ]
-        monkeypatch.setattr(run_full, "load_institutions", lambda: both_disabled)
+        monkeypatch.setattr(run_full, "load_merged_institutions", lambda: both_disabled)
         calls = []
         monkeypatch.setattr(run_full, "fetch_source", _fake_fetch_source_factory(calls))
         monkeypatch.setattr(run_full, "build_session", lambda: object())
@@ -167,7 +167,7 @@ class TestStage1ScrapeEnabledEndToEnd:
         # zero sources (iter_sources never yields it) and must return 1 with
         # the "matched no enabled institution" reason, not a silent success.
         out_dir = tmp_path / "scraped"
-        monkeypatch.setattr(run_full, "load_institutions", lambda: self._two_institutions())
+        monkeypatch.setattr(run_full, "load_merged_institutions", lambda: self._two_institutions())
         calls = []
         monkeypatch.setattr(run_full, "fetch_source", _fake_fetch_source_factory(calls))
         monkeypatch.setattr(run_full, "build_session", lambda: object())
@@ -181,7 +181,7 @@ class TestStage1ScrapeEnabledEndToEnd:
         # _institutions_payload keeps disabled institutions in the published
         # registry, flagged enabled:false -- honest metadata; the value must
         # track Institution.enabled, not silently default to True.
-        monkeypatch.setattr(run_full, "load_institutions", lambda: self._two_institutions())
+        monkeypatch.setattr(run_full, "load_merged_institutions", lambda: self._two_institutions())
 
         payload = run_full._institutions_payload()
 

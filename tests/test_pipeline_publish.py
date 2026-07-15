@@ -24,19 +24,26 @@ from scraper.config import DEFAULT_CONFIG_PATH, Institution, Source, load_instit
 
 @pytest.fixture(autouse=True)
 def _no_live_firestore(monkeypatch):
-    """stage_5_publish merges curator overrides via fetch_overrides() and
+    """stage_5_publish merges curator overrides via fetch_overrides(),
     (Phase Q) reads the Needs-Review gate's settings/decisions via
-    fetch_review_settings()/fetch_review_decisions() -- all three make a
-    live Firestore REST call. Stub them so every publish test stays
-    hermetic (no network): overrides default to none applied, and the gate
+    fetch_review_settings()/fetch_review_decisions(), and (Phase R) resolves
+    institutions via load_merged_institutions() -- all four make a live
+    Firestore REST call (load_merged_institutions internally, via
+    fetch_institution_docs()). Stub them so every publish test stays
+    hermetic (no network): overrides default to none applied, the gate
     defaults to enabled at the standard 0.8 threshold with no decisions
     (matching production's fail-safe defaults), which lets every existing
     fixture record (deadline confidence 0.85, i.e. not flagged) keep
-    auto-publishing exactly as it did before Phase Q. Tests that
-    specifically exercise overrides or the gate re-patch these themselves."""
+    auto-publishing exactly as it did before Phase Q, and institutions
+    default to the real YAML registry with no Firestore docs applied --
+    i.e. exactly pre-Phase-R behavior, preserving this file's existing
+    "checked against the real config/institutions.yaml registry" tests.
+    Tests that specifically exercise overrides, the gate, or the
+    institutions merge re-patch these themselves."""
     monkeypatch.setattr(run_full, "fetch_overrides", lambda *a, **k: {})
     monkeypatch.setattr(run_full, "fetch_review_settings", lambda *a, **k: {"enabled": True, "threshold": 0.8})
     monkeypatch.setattr(run_full, "fetch_review_decisions", lambda *a, **k: {})
+    monkeypatch.setattr(run_full, "load_merged_institutions", lambda *a, **k: load_institutions(DEFAULT_CONFIG_PATH))
 
 
 def _write_extracted_record(extracted_dir, filename, chunk_id="giki", **overrides):
@@ -300,13 +307,14 @@ class TestStage5PublishGaps:
     filtering/ordering). Also probes a write-failure window between the two
     _write_json_files_atomic() call that TestStage5Publish does not cover.
 
-    Binding note: pipeline/run_full.py does `from scraper.config import
-    load_institutions`, so `_institutions_payload()` resolves the name via
-    `pipeline.run_full`'s own module globals at call time. Patching
-    `scraper.config.load_institutions` directly would NOT affect
-    `stage_5_publish` -- tests below patch `run_full.load_institutions`
-    instead, matching the documented caveat in the (now-removed)
-    tests/test_pipeline_sync.py for the equivalent Firestore-stage functions.
+    Binding note: pipeline/run_full.py does `from pipeline.institutions_registry
+    import load_merged_institutions`, so `_institutions_payload()` resolves
+    the name via `pipeline.run_full`'s own module globals at call time.
+    Patching `pipeline.institutions_registry.load_merged_institutions`
+    directly would NOT affect `stage_5_publish` -- tests below patch
+    `run_full.load_merged_institutions` instead, matching the documented
+    caveat in the (now-removed) tests/test_pipeline_sync.py for the
+    equivalent Firestore-stage functions.
     """
 
     # -- 1. institutions_payload() read failure after records are loaded ----
@@ -321,7 +329,7 @@ class TestStage5PublishGaps:
         def _raise():
             raise OSError("config/institutions.yaml temporarily unreadable")
 
-        monkeypatch.setattr(run_full, "load_institutions", _raise)
+        monkeypatch.setattr(run_full, "load_merged_institutions", _raise)
 
         rc = run_full.stage_5_publish(extracted_dir, publish_dir)
 
@@ -350,7 +358,7 @@ class TestStage5PublishGaps:
         def _raise():
             raise OSError("config/institutions.yaml moved mid-run")
 
-        monkeypatch.setattr(run_full, "load_institutions", _raise)
+        monkeypatch.setattr(run_full, "load_merged_institutions", _raise)
 
         rc2 = run_full.stage_5_publish(extracted_dir2, publish_dir)
 
@@ -445,7 +453,7 @@ class TestStage5PublishGaps:
             ug_pg_mixed=False,
             sources=[],
         )
-        monkeypatch.setattr(run_full, "load_institutions", lambda: [fake_institution])
+        monkeypatch.setattr(run_full, "load_merged_institutions", lambda: [fake_institution])
 
         payload = run_full._institutions_payload()
 
@@ -472,7 +480,7 @@ class TestStage5PublishGaps:
                 Source(institution_id="fake-multi", campus="Karachi", url="https://c.example", format="html"),
             ],
         )
-        monkeypatch.setattr(run_full, "load_institutions", lambda: [fake_institution])
+        monkeypatch.setattr(run_full, "load_merged_institutions", lambda: [fake_institution])
 
         payload = run_full._institutions_payload()
 

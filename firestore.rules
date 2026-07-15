@@ -34,6 +34,19 @@ rules_version = '2';
 // controlling the confidence gate itself. Also public-read (not sensitive --
 // it only affects which already-extracted, source-attributed data auto-
 // publishes vs. queues for review) and allowlist-write.
+//
+// Phase R added one more collection, same identical pattern -- see
+// pipeline/institutions_registry.py:
+//
+// `institutions/{institutionId}` holds a curator-added or curator-edited
+// institution (structure only: name, sources/URLs, enabled/admitting_body/
+// ug_pg_mixed flags -- never extracted admissions data), or a tombstone
+// ({deleted: true}) removing one. Merged over the git-tracked
+// config/institutions.yaml seed at pipeline-run time, feeding both the
+// scraper and the published institutions.json. Public-read for the same
+// reason as the other three: this data is either already public
+// (institutions.json) or about to become so, and allowlist-write keeps
+// only vetted curators able to add/edit/remove what the scraper monitors.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -58,6 +71,16 @@ service cloud.firestore {
     }
 
     match /settings/{document} {
+      allow read: if true;
+
+      allow write: if request.auth != null
+        && request.auth.uid in [
+          "6R16qbAoanaYiEOWH9gqjDALyoy2",
+          // "<curator-uid-2>",
+        ];
+    }
+
+    match /institutions/{institutionId} {
       allow read: if true;
 
       allow write: if request.auth != null

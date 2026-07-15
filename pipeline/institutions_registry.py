@@ -191,7 +191,30 @@ def load_merged_institutions(
 ) -> list[Institution]:
     """The one entry point stage_1_scrape and stage_5_publish both call:
     YAML seed merged with the curator-managed Firestore `institutions`
-    collection, tombstones applied."""
+    collection, tombstones applied.
+
+    Belt-and-suspenders beyond fetch_institution_docs()'s own "never raise"
+    contract: this function feeds BOTH the scraper and the publish stage of
+    an unattended weekly pipeline run, so an exception here would abort the
+    entire run, not just skip the institutions merge -- a wider blast radius
+    than any single fetch_* call elsewhere in this pipeline. Any unexpected
+    exception (not just the FIRESTORE_EXCEPTIONS fetch_institution_docs
+    already catches internally) degrades to the YAML-only seed rather than
+    propagating.
+
+    Known accepted gap: stage_1_scrape and stage_5_publish each call this
+    function independently (two separate Firestore round-trips per pipeline
+    run, a few minutes apart per .github/workflows/pipeline.yml). A curator
+    edit landing in that window means the run could scrape one snapshot of
+    admin-managed institutions and publish metadata for a slightly different
+    one. Not fixed here: curator institution edits are rare, manual,
+    admin-only actions, and passing a resolved list across separate GitHub
+    Actions steps would need its own persistence mechanism for a narrow,
+    low-frequency race -- not worth the added machinery at this scale."""
     yaml_institutions = load_institutions(config_path)
-    firestore_docs = fetch_institution_docs(project_id=project_id, session=session)
+    try:
+        firestore_docs = fetch_institution_docs(project_id=project_id, session=session)
+    except Exception as exc:  # noqa: BLE001 -- see docstring: any failure here must degrade, never abort the run
+        print(f"WARN  unexpected failure resolving admin-managed institutions ({exc}) -- using YAML institutions only", file=sys.stderr)
+        firestore_docs = {}
     return merge_institutions(yaml_institutions, firestore_docs)

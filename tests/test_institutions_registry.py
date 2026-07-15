@@ -333,6 +333,37 @@ institutions:
 
         assert [i.id for i in result] == ["giki"]
 
+    def test_unexpected_exception_from_fetch_institution_docs_falls_back_to_yaml_only(self, monkeypatch, tmp_path):
+        # Belt-and-suspenders beyond fetch_institution_docs's own internal
+        # try/except: even an exception type outside FIRESTORE_EXCEPTIONS
+        # (or a bug in fetch_institution_docs itself) must not abort
+        # load_merged_institutions -- this function feeds both stage_1_scrape
+        # and stage_5_publish of an unattended pipeline run, so an uncaught
+        # exception here has a wider blast radius than any single fetch_*
+        # call elsewhere.
+        config_path = tmp_path / "institutions.yaml"
+        config_path.write_text(
+            """
+institutions:
+  - id: giki
+    name: GIKI
+    sources:
+      - campus: null
+        url: "https://giki.edu.pk"
+        format: html
+""",
+            encoding="utf-8",
+        )
+
+        def _raise(*a, **k):
+            raise ConnectionError("unexpected failure")
+
+        monkeypatch.setattr("pipeline.institutions_registry.fetch_institution_docs", _raise)
+
+        result = load_merged_institutions(config_path=config_path)
+
+        assert [i.id for i in result] == ["giki"]
+
 
 # ---------------------------------------------------------------------------
 # Additional QA coverage: mixed-validity source lists, multi-campus survival,

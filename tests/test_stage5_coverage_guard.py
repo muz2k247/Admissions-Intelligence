@@ -22,6 +22,10 @@ def _no_live_firestore(monkeypatch):
     monkeypatch.setattr(run_full, "fetch_overrides", lambda *a, **k: {})
     monkeypatch.setattr(run_full, "fetch_review_settings", lambda *a, **k: {"enabled": True, "threshold": 0.8})
     monkeypatch.setattr(run_full, "fetch_review_decisions", lambda *a, **k: {})
+    # (Phase R) _institutions_payload() now resolves institutions via
+    # load_merged_institutions(), which makes a live Firestore REST call
+    # internally (fetch_institution_docs()) unless stubbed here too.
+    monkeypatch.setattr(run_full, "load_merged_institutions", lambda *a, **k: [])
 
 
 def _record(chunk_id, institution_id="giki", deadline=None, programs=None, constituent_college=None):
