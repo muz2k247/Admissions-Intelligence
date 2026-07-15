@@ -45,7 +45,14 @@ from pipeline._firestore import (
     fetch_collection,
     load_project_id,
 )
-from scraper.config import DEFAULT_CONFIG_PATH, Institution, Source, VALID_RENDER_MODES, load_institutions
+from scraper.config import (
+    DEFAULT_CONFIG_PATH,
+    VALID_RENDER_MODES,
+    Institution,
+    Source,
+    find_campus_collision,
+    load_institutions,
+)
 
 _DEFAULT_TIMEOUT = 30
 
@@ -98,6 +105,15 @@ def _build_institution(institution_id: str, decoded: dict) -> Institution | None
         if campus is not None and not isinstance(campus, str):
             campus = None
         sources.append(Source(institution_id=institution_id, campus=campus, url=url, format=fmt, render=render))
+
+    collision = find_campus_collision(sources)
+    if collision is not None:
+        print(
+            f"WARN  institution {institution_id!r}: sources {collision[0]!r} and {collision[1]!r} "
+            "would collide on the same scraped-file name / chunk_id -- ignored",
+            file=sys.stderr,
+        )
+        return None
 
     return Institution(
         id=institution_id,

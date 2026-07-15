@@ -12,7 +12,15 @@ from pathlib import Path
 import pytest
 import requests
 
-from scraper.config import DEFAULT_CONFIG_PATH, Institution, Source, load_institutions, iter_sources
+from scraper.config import (
+    DEFAULT_CONFIG_PATH,
+    Institution,
+    Source,
+    campus_collision_key,
+    find_campus_collision,
+    load_institutions,
+    iter_sources,
+)
 from scraper.fetch import FetchResult, fetch_source
 from scraper.pdf_fallback import PdfDocument, find_pdf_links, fetch_pdf_text, fetch_linked_pdfs
 from scraper.run import slugify_source
@@ -153,6 +161,165 @@ institutions:
         disabled = next(i for i in institutions if i.id == "disabled_inst")
         assert active.enabled is True
         assert disabled.enabled is False
+
+    # -- campus-collision validation (a colliding campus label makes two
+    # sources silently overwrite each other's scraped-file/chunk_id output,
+    # see extraction/chunker.py and pipeline/run_full.py::stage_1_scrape) --
+
+    def test_two_sources_with_no_campus_raises(self, tmp_path):
+        config_path = tmp_path / "institutions.yaml"
+        config_path.write_text(
+            """
+institutions:
+  - id: bad
+    name: Bad Institution
+    sources:
+      - campus: null
+        url: "https://a.example.edu"
+        format: html
+      - campus: null
+        url: "https://b.example.edu"
+        format: html
+""",
+            encoding="utf-8",
+        )
+        with pytest.raises(ValueError, match="collide"):
+            load_institutions(config_path)
+
+    def test_two_sources_with_identical_campus_raises(self, tmp_path):
+        config_path = tmp_path / "institutions.yaml"
+        config_path.write_text(
+            """
+institutions:
+  - id: bad
+    name: Bad Institution
+    sources:
+      - campus: "Lahore"
+        url: "https://a.example.edu"
+        format: html
+      - campus: "Lahore"
+        url: "https://b.example.edu"
+        format: html
+""",
+            encoding="utf-8",
+        )
+        with pytest.raises(ValueError, match="collide"):
+            load_institutions(config_path)
+
+    def test_two_sources_with_case_and_whitespace_variant_campus_raises(self, tmp_path):
+        # "Islamabad" and "  ISLAMABAD  " differ as raw strings (so a naive
+        # exact-match check would miss this) but collide once chunk_id's own
+        # lower/strip/space-to-underscore normalization is applied.
+        config_path = tmp_path / "institutions.yaml"
+        config_path.write_text(
+            """
+institutions:
+  - id: bad
+    name: Bad Institution
+    sources:
+      - campus: "Islamabad"
+        url: "https://a.example.edu"
+        format: html
+      - campus: "  ISLAMABAD  "
+        url: "https://b.example.edu"
+        format: html
+""",
+            encoding="utf-8",
+        )
+        with pytest.raises(ValueError, match="collide"):
+            load_institutions(config_path)
+
+    def test_whitespace_only_campus_collides_with_no_campus(self, tmp_path):
+        config_path = tmp_path / "institutions.yaml"
+        config_path.write_text(
+            """
+institutions:
+  - id: bad
+    name: Bad Institution
+    sources:
+      - campus: null
+        url: "https://a.example.edu"
+        format: html
+      - campus: "   "
+        url: "https://b.example.edu"
+        format: html
+""",
+            encoding="utf-8",
+        )
+        with pytest.raises(ValueError, match="collide"):
+            load_institutions(config_path)
+
+    def test_distinct_campuses_load_fine(self, tmp_path):
+        # Sanity: a legitimate multi-campus institution (matching
+        # air_university's real shape) must not be rejected.
+        config_path = tmp_path / "institutions.yaml"
+        config_path.write_text(
+            """
+institutions:
+  - id: multi
+    name: Multi Campus University
+    sources:
+      - campus: "Islamabad"
+        url: "https://a.example.edu"
+        format: html
+      - campus: "Karachi"
+        url: "https://b.example.edu"
+        format: html
+""",
+            encoding="utf-8",
+        )
+        institutions = load_institutions(config_path)
+        assert len(institutions[0].sources) == 2
+
+    def test_single_source_with_no_campus_is_fine(self, tmp_path):
+        # The overwhelmingly common case (a single-URL institution) must not
+        # be affected by this check at all.
+        config_path = tmp_path / "institutions.yaml"
+        config_path.write_text(
+            """
+institutions:
+  - id: single
+    name: Single Source University
+    sources:
+      - campus: null
+        url: "https://a.example.edu"
+        format: html
+""",
+            encoding="utf-8",
+        )
+        institutions = load_institutions(config_path)
+        assert len(institutions[0].sources) == 1
+
+    def test_real_registry_has_no_campus_collisions(self):
+        # Regression guard for future YAML edits: every institution in the
+        # live registry must keep passing this check (this test would have
+        # failed loudly had load_real_registry_counts not already covered
+        # it implicitly via load_institutions() now raising on load).
+        institutions = load_institutions(DEFAULT_CONFIG_PATH)
+        for inst in institutions:
+            assert find_campus_collision(inst.sources) is None, f"{inst.id} has a campus collision"
+
+    def test_campus_collision_key_treats_none_and_blank_as_same_bucket(self):
+        assert campus_collision_key(None) == campus_collision_key("") == campus_collision_key("   ") == ""
+
+    def test_campus_collision_key_normalizes_case_and_leading_trailing_whitespace(self):
+        assert campus_collision_key("Lahore Main") == campus_collision_key("  LAHORE MAIN  ")
+        assert campus_collision_key("Lahore Main") == "lahore_main"
+
+    def test_find_campus_collision_returns_none_for_empty_or_single_source(self):
+        assert find_campus_collision([]) is None
+        assert find_campus_collision([Source(institution_id="x", campus=None, url="https://a", format="html")]) is None
+
+    def test_collision_label_is_no_campus_for_whitespace_only_not_raw_whitespace(self):
+        # A whitespace-only campus is truthy in Python (`"   " or "x"` picks
+        # "   "), so a naive `campus or "(no campus)"` label would surface a
+        # literal, invisible run of spaces in an error/warning message
+        # instead of the readable "(no campus)" placeholder.
+        sources = [
+            Source(institution_id="x", campus=None, url="https://a.example", format="html"),
+            Source(institution_id="x", campus="   ", url="https://b.example", format="html"),
+        ]
+        assert find_campus_collision(sources) == ("(no campus)", "(no campus)")
 
     def test_iter_sources_skips_disabled_institutions_but_load_institutions_still_returns_them(self):
         active = Institution(

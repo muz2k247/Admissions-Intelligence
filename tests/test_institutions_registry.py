@@ -405,6 +405,71 @@ class TestMixedValiditySourceLists:
         assert result == []  # whole institution excluded, not just the bad source dropped
 
 
+class TestCampusCollisionDegradesGracefully:
+    """A Firestore doc whose sources collide on scraped-file name / chunk_id
+    (scraper.config.find_campus_collision -- see that module for the full
+    rationale) must degrade the same way any other malformed doc does: WARN
+    and fall back to the YAML version (if any) or exclude the institution
+    entirely -- never raise, never silently keep the colliding sources."""
+
+    def test_two_sources_with_no_campus_falls_back_to_yaml(self):
+        yaml_insts = [_yaml_institution("giki", name="GIKI (yaml)")]
+        firestore_docs = {
+            "giki": {
+                "name": "GIKI (bad)",
+                "sources": [
+                    {"url": "https://a.edu.pk", "format": "html"},
+                    {"url": "https://b.edu.pk", "format": "html"},
+                ],
+            }
+        }
+        result = merge_institutions(yaml_insts, firestore_docs)
+        assert len(result) == 1
+        assert result[0].name == "GIKI (yaml)"
+
+    def test_two_sources_with_identical_campus_excludes_new_institution(self):
+        firestore_docs = {
+            "new_multi": {
+                "name": "New Multi",
+                "sources": [
+                    {"url": "https://a.edu.pk", "format": "html", "campus": "Lahore"},
+                    {"url": "https://b.edu.pk", "format": "html", "campus": "Lahore"},
+                ],
+            }
+        }
+        result = merge_institutions([], firestore_docs)
+        assert result == []
+
+    def test_case_and_whitespace_variant_campus_collision_is_caught(self):
+        firestore_docs = {
+            "new_multi": {
+                "name": "New Multi",
+                "sources": [
+                    {"url": "https://a.edu.pk", "format": "html", "campus": "Islamabad"},
+                    {"url": "https://b.edu.pk", "format": "html", "campus": "  ISLAMABAD  "},
+                ],
+            }
+        }
+        result = merge_institutions([], firestore_docs)
+        assert result == []
+
+    def test_distinct_campuses_are_accepted(self):
+        # Sanity: a legitimate multi-campus doc (matching air_university's
+        # real shape) must not be rejected by this check.
+        firestore_docs = {
+            "air_university": {
+                "name": "Air University",
+                "sources": [
+                    {"url": "https://a.edu.pk", "format": "html", "campus": "Islamabad"},
+                    {"url": "https://b.edu.pk", "format": "html", "campus": "Karachi"},
+                ],
+            }
+        }
+        result = merge_institutions([], firestore_docs)
+        assert len(result) == 1
+        assert len(result[0].sources) == 2
+
+
 class TestMultiCampusSurvival:
     def test_multiple_sources_survive_merge_intact(self):
         """A curator-edited multi-campus institution (Air University shape:

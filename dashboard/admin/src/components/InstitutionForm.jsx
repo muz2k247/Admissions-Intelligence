@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { VALID_FORMATS, VALID_RENDER_MODES } from "../api/institutions";
+import { findCampusCollision } from "../lib/campusCollision";
 
 // A safe Firestore-doc-id / config/institutions.yaml-style slug: lowercase
 // letters, digits, and underscores only (matches every existing id in
@@ -156,6 +157,15 @@ export default function InstitutionForm({ institutionId, initial, existingIds, o
         return;
       }
       cleanedSources.push({ campus: s.campus.trim() || null, url, format: s.format, render: s.render });
+    }
+
+    const collision = findCampusCollision(cleanedSources);
+    if (collision) {
+      setValidationError(
+        `"${collision[0]}" and "${collision[1]}" would collide on the same scraped file / chunk ` +
+          "id -- give each source a distinct campus (or make sure at most one source has no campus)."
+      );
+      return;
     }
 
     onSave({

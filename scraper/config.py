@@ -44,6 +44,59 @@ class Institution:
     enabled: bool = True
 
 
+def campus_collision_key(campus: str | None) -> str:
+    """Canonical key two sources' campus values collide under.
+
+    Deliberately normalizes more aggressively than either downstream
+    consumer strictly requires on its own -- extraction/chunker.py's
+    chunk_id derivation (`institution_id__campus.lower().replace(" ", "_")`,
+    or bare `institution_id` when campus is falsy) and pipeline/run_full.py's
+    stage_1_scrape scraped-file naming (`institution_id__{campus or
+    "default"}`, exact string, no case-folding) -- so this single check
+    catches every real collision surface at once: two sources with no
+    campus, two sources sharing the identical campus string, and two campus
+    names that only differ by case or whitespace (which would still collide
+    at the chunk_id layer even though their raw strings differ, and
+    wouldn't be caught by an exact-string comparison alone).
+
+    A blank/whitespace-only campus (e.g. "" or "   ") is bucketed together
+    with a genuinely absent (None) campus -- note this is a deliberate
+    simplification, not a claim that the two downstream consumers already
+    collide on this exact pairing today (a whitespace-only string is
+    truthy in Python, so as written neither chunker.py's `if campus:` nor
+    stage_1_scrape's `campus or "default"` treats it as absent, and their
+    literal outputs would in fact differ from the true-None case). Real
+    campus content should never be pure whitespace, so treating it as
+    equivalent to "no campus" here is the safer call regardless."""
+    if campus is None or not campus.strip():
+        return ""
+    return campus.strip().lower().replace(" ", "_")
+
+
+def find_campus_collision(sources: list[Source]) -> tuple[str, str] | None:
+    """Returns (first_label, second_label) of the first two sources within
+    one institution's `sources` list whose campus values collide (see
+    campus_collision_key), or None if every source has a distinct campus
+    key. A collision means the second-scraped source silently overwrites
+    the first's scraped-file / extracted-record file on disk (same
+    filename / chunk_id), discarding that source's data entirely with no
+    warning anywhere in the pipeline -- so this must be checked wherever
+    institution structure is built (the YAML loader below, and
+    pipeline/institutions_registry.py's Firestore-doc validator), never
+    just assumed valid. `label` is "(no campus)" for any campus that buckets
+    into the blank key (None, "", or whitespace-only -- not just a raw
+    falsy check, so a whitespace-only campus never leaks into an error/
+    warning message as a literal, invisible run of spaces)."""
+    seen: dict[str, str] = {}
+    for src in sources:
+        key = campus_collision_key(src.campus)
+        label = src.campus.strip() if key else "(no campus)"
+        if key in seen:
+            return seen[key], label
+        seen[key] = label
+    return None
+
+
 def load_institutions(config_path: Path | str = DEFAULT_CONFIG_PATH) -> list[Institution]:
     config_path = Path(config_path)
     with config_path.open("r", encoding="utf-8") as f:
@@ -66,6 +119,13 @@ def load_institutions(config_path: Path | str = DEFAULT_CONFIG_PATH) -> list[Ins
                     format=src["format"],
                     render=render,
                 )
+            )
+        collision = find_campus_collision(sources)
+        if collision is not None:
+            raise ValueError(
+                f"{entry['id']}: sources {collision[0]!r} and {collision[1]!r} would collide on "
+                "the same scraped-file name / chunk_id -- give each source a distinct campus "
+                "(or make sure at most one source has no campus)."
             )
         institutions.append(
             Institution(
