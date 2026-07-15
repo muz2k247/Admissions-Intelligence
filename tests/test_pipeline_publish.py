@@ -151,6 +151,75 @@ class TestStage5Publish:
         assert giki["programs"] == {"value": None, "confidence": None, "note": None}
         assert "Applied curator overrides to 0 of" in capsys.readouterr().out
 
+    def test_applied_count_reflects_mixed_applied_stale_and_unoverridden_records(self, tmp_path, monkeypatch, capsys):
+        # Three chunks: one with a genuinely-applied override, one whose only
+        # override is stale (dropped), one with no override entry at all.
+        # "Applied curator overrides to N of M" must count only the record
+        # that actually changed (N=1), out of all published records (M=3) --
+        # not the number of chunks that merely had an override doc (which
+        # would be 2), and not the number with zero entries.
+        from extraction.schema import Field
+        from pipeline.overrides import _OverrideEntry
+
+        extracted_dir = tmp_path / "extracted"
+        publish_dir = tmp_path / "publish"
+        _write_extracted_record(extracted_dir, "giki.json", chunk_id="giki", institution_id="giki")
+        _write_extracted_record(extracted_dir, "uet.json", chunk_id="uet", institution_id="uet")
+        _write_extracted_record(extracted_dir, "fast.json", chunk_id="fast", institution_id="fast")
+        monkeypatch.setattr(
+            run_full, "fetch_overrides",
+            lambda *a, **k: {
+                # giki: genuinely applied (no original captured -> unconditional apply)
+                "giki": {"programs": _OverrideEntry(field=Field(value=["BS CS"], confidence=1.0, note="human-verified"))},
+                # uet: stale -> dropped, not counted as applied
+                "uet": {
+                    "programs": _OverrideEntry(
+                        field=Field(value=["BS EE"], confidence=1.0, note="human-verified"),
+                        original="something that was never actually extracted",
+                    )
+                },
+                # fast: no override entry at all
+            },
+        )
+
+        rc = run_full.stage_5_publish(extracted_dir, publish_dir)
+
+        assert rc == 0
+        assert "Applied curator overrides to 1 of 3" in capsys.readouterr().out
+
+    def test_no_op_override_matching_current_value_is_not_counted_as_applied(self, tmp_path, monkeypatch, capsys):
+        # An override whose replacement field is identical to the already-
+        # extracted value produces an unchanged record after merge (before
+        # == after) -- the "actually changed" count must not credit this as
+        # an applied override even though an override entry existed.
+        from extraction.schema import Field
+        from pipeline.overrides import _OverrideEntry
+
+        extracted_dir = tmp_path / "extracted"
+        publish_dir = tmp_path / "publish"
+        # deadline already "10 Aug 2026" / 0.85 per _write_extracted_record's default --
+        # override it with a Field carrying identical value/confidence/note (1.0
+        # note "human-verified" differs, so instead make the override match
+        # exactly what merge_overrides would produce for a genuinely no-op case:
+        # override programs to match its own already-null value is not possible
+        # (Field(value=None, confidence=...) is invalid) so we override deadline
+        # with the exact override note/confidence the record already carries.
+        _write_extracted_record(
+            extracted_dir, "giki.json", chunk_id="giki",
+            deadline={"value": "10 Aug 2026", "confidence": 1.0, "note": "human-verified"},
+        )
+        monkeypatch.setattr(
+            run_full, "fetch_overrides",
+            lambda *a, **k: {
+                "giki": {"deadline": _OverrideEntry(field=Field(value="10 Aug 2026", confidence=1.0, note="human-verified"))}
+            },
+        )
+
+        rc = run_full.stage_5_publish(extracted_dir, publish_dir)
+
+        assert rc == 0
+        assert "Applied curator overrides to 0 of 1" in capsys.readouterr().out
+
     def test_null_field_never_carries_a_default_or_confidence(self, tmp_path):
         extracted_dir = tmp_path / "extracted"
         publish_dir = tmp_path / "publish"

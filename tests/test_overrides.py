@@ -494,6 +494,21 @@ class TestMergeOverrides:
         assert merged.admissions_open == record.admissions_open
         assert merged.deadline == Field(value="2026-08-15", confidence=1.0, note="human-verified")
 
+    def test_no_op_override_that_matches_already_published_value(self):
+        # An override whose replacement field is byte-for-byte identical to
+        # the record's current field (same value/confidence/note) still goes
+        # through dataclasses.replace, but the resulting record must compare
+        # equal to the input -- this is what run_full.py's "actually changed"
+        # counting logic (before != after via zip) depends on to NOT count a
+        # no-op merge as "applied".
+        record = _record(chunk_id="giki", deadline=Field(value="2026-08-15", confidence=1.0, note="human-verified"))
+        overrides = {"giki": {"deadline": _entry("2026-08-15", confidence=1.0, note="human-verified")}}
+
+        merged = merge_overrides(record, overrides)
+
+        assert merged == record
+        assert merged is not record  # dataclasses.replace always returns a new instance
+
 
 class TestMergeOverridesStaleDetection:
     def test_matching_original_applies_the_override(self):
@@ -609,6 +624,31 @@ class TestMergeOverridesStaleDetection:
         merged = merge_overrides(record, overrides)
 
         assert merged.deadline == Field(value=reordered, confidence=0.9)  # override dropped, fresh value used
+
+    def test_mixed_no_original_and_stale_original_in_same_chunk(self):
+        # One field on the chunk predates Phase Q (no `original` captured,
+        # applies unconditionally); a second field on the SAME chunk has a
+        # captured original that no longer matches the fresh value (stale,
+        # dropped). Each field's staleness decision must be independent of
+        # the other field's sentinel-vs-real-original status.
+        record = _record(
+            chunk_id="giki",
+            deadline=Field(value="totally different now", confidence=0.9),
+            programs=Field(value=["BE EE"], confidence=0.9),
+        )
+        overrides = {
+            "giki": {
+                "deadline": _entry("2026-08-15", original=_NO_ORIGINAL_CAPTURED),
+                "programs": _entry(["BS CS"], original=["BS CS", "BS EE"]),
+            }
+        }
+
+        merged = merge_overrides(record, overrides)
+
+        # deadline: no original captured -> applies unconditionally (legacy doc)
+        assert merged.deadline == Field(value="2026-08-15", confidence=1.0, note="human-verified")
+        # programs: stale -> dropped, fresh value flows through
+        assert merged.programs == Field(value=["BE EE"], confidence=0.9)
 
 
 # ---------------------------------------------------------------------------
