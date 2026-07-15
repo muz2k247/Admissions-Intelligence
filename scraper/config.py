@@ -14,7 +14,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG_PATH = REPO_ROOT / "config" / "institutions.yaml"
 
 
-_VALID_RENDER_MODES = {"static", "js"}
+VALID_RENDER_MODES = {"static", "js"}
 
 
 @dataclass(frozen=True)
@@ -54,9 +54,9 @@ def load_institutions(config_path: Path | str = DEFAULT_CONFIG_PATH) -> list[Ins
         sources = []
         for src in entry["sources"]:
             render = src.get("render", "static")
-            if render not in _VALID_RENDER_MODES:
+            if render not in VALID_RENDER_MODES:
                 raise ValueError(
-                    f"{entry['id']}: source render={render!r} must be one of {_VALID_RENDER_MODES}"
+                    f"{entry['id']}: source render={render!r} must be one of {VALID_RENDER_MODES}"
                 )
             sources.append(
                 Source(
