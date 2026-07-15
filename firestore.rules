@@ -21,10 +21,43 @@ rules_version = '2';
 // NO ONE can write, which is the correct fail-closed default. Never widen the
 // write rule to `if request.auth != null` (that would let any Google account
 // on earth write); keep it pinned to specific UIDs.
+//
+// Phase Q added two more collections/documents on the identical pattern
+// (public read, allowlisted curator write) -- see pipeline/review.py:
+//
+// `review_decisions/{chunkId}` holds a curator's approve/reject call on a
+// record extraction/review_gate.py flagged as low-confidence. Public-read
+// for the same reason as `overrides`: the decision only ever gates data
+// that's already public (records.json) or about to become so.
+//
+// `settings/review_gate` is a single document ({enabled, threshold})
+// controlling the confidence gate itself. Also public-read (not sensitive --
+// it only affects which already-extracted, source-attributed data auto-
+// publishes vs. queues for review) and allowlist-write.
 service cloud.firestore {
   match /databases/{database}/documents {
 
     match /overrides/{chunkId} {
+      allow read: if true;
+
+      allow write: if request.auth != null
+        && request.auth.uid in [
+          "6R16qbAoanaYiEOWH9gqjDALyoy2",
+          // "<curator-uid-2>",
+        ];
+    }
+
+    match /review_decisions/{chunkId} {
+      allow read: if true;
+
+      allow write: if request.auth != null
+        && request.auth.uid in [
+          "6R16qbAoanaYiEOWH9gqjDALyoy2",
+          // "<curator-uid-2>",
+        ];
+    }
+
+    match /settings/{document} {
       allow read: if true;
 
       allow write: if request.auth != null

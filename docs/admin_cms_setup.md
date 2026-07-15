@@ -75,6 +75,26 @@ edit stores (`verified_by`, `verified_at`, `original`) is publicly readable even
 though it never reaches `records.json`. Keep that metadata non-sensitive:
 `verified_by` must be the opaque Firebase UID, never an email or display name.
 
+## 6. Needs-Review queue (Phase Q)
+
+Two more Firestore locations, same public-read / allowlisted-curator-write
+pattern as `overrides` (already covered by the rules deploy in step 4 — no
+extra step needed once `firestore.rules` includes them):
+
+- **`review_decisions/{chunkId}`** — a curator's approve/reject call on a
+  record `extraction/review_gate.py` flagged as low-confidence, read by
+  `pipeline/review.py::fetch_review_decisions()` at publish time. Keyed by
+  chunk_id + a `content_hash` of the four reviewable field values the
+  curator was looking at — if a later re-scrape changes any of them, the
+  hash no longer matches and the record re-queues instead of trusting a
+  stale decision.
+- **`settings/review_gate`** — a single document (`{enabled, threshold}`)
+  letting curators tune or disable the confidence gate from the admin CMS
+  without a code deploy, read by `pipeline/review.py::fetch_review_settings()`.
+  Missing/unreadable defaults to `{enabled: true, threshold: 0.8}` (fail-safe:
+  if the toggle itself can't be read, low-confidence data still gets queued
+  rather than silently publishing).
+
 ## Notes
 - These steps are the admin-CMS analogue of Phase F's one-time deploy-token
   minting: a human does them in the console, never an agent, and no secret from
