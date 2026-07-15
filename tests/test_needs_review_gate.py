@@ -16,6 +16,7 @@ import pytest
 import pipeline.run_full as run_full
 from extraction.review_gate import content_hash
 from extraction.schema import DegreeLevel, ExtractedRecord, Field, NULL_FIELD
+from pipeline.overrides import _OverrideEntry
 
 
 @pytest.fixture(autouse=True)
@@ -480,3 +481,139 @@ class TestCoverageGuardUnaffectedByGating:
 
         assert rc2 == 0  # accepted: does not trip the guard, "c" is inert
         assert sorted(r["chunk_id"] for r in json.loads((publish_dir / "records.json").read_text(encoding="utf-8"))) == ["a", "b"]
+
+
+class TestEditThenApproveEndToEnd:
+    """Regression coverage for the admin CMS "edit then approve" bug: a
+    curator correcting one flagged field via FieldEditor, then clicking
+    Approve for the whole record, used to submit a decision keyed on the
+    STALE pre-edit content_hash (dashboard/admin/src/components/ReviewQueue.jsx
+    passed the untouched `record` to submitReviewDecision). Since
+    stage_5_publish merges the curator's override in BEFORE computing
+    content_hash for the gate comparison, that stale hash could never match,
+    and the record silently re-queued forever despite being "approved".
+
+    Fixed by dashboard/admin/src/lib/reviewRecord.js::applyFieldEdits (see
+    dashboard/admin/scripts/verify_edit_then_approve.mjs for the JS-side
+    check). This test exercises the equivalent full cycle on the Python side:
+    run 1 queues a two-field-flagged record; the curator's correction lands
+    as a Firestore override AND a decision keyed on the hash the FIXED UI
+    would now compute (content_hash of the record with just the edited field
+    replaced); run 2 must publish the record whole, both fields intact.
+    """
+
+    def test_edit_then_approve_publishes_on_next_run(self, tmp_path, monkeypatch):
+        extracted_dir = tmp_path / "extracted"
+        publish_dir = tmp_path / "publish"
+        monkeypatch.setattr(run_full, "fetch_review_settings", lambda *a, **k: {"enabled": True, "threshold": 0.8})
+        monkeypatch.setattr(run_full, "fetch_overrides", lambda *a, **k: {})
+        monkeypatch.setattr(run_full, "fetch_review_decisions", lambda *a, **k: {})
+
+        # Run 1: record flagged on BOTH deadline and programs -> queued, not published.
+        _write_extracted_record(
+            extracted_dir, "giki.json", deadline_confidence=0.5,
+            programs={"value": ["BS CS"], "confidence": 0.4, "note": None},
+        )
+        rc1 = run_full.stage_5_publish(extracted_dir, publish_dir)
+        assert rc1 == 0
+        assert json.loads((publish_dir / "records.json").read_text(encoding="utf-8")) == []
+        assert [r["chunk_id"] for r in json.loads((publish_dir / "needs_review.json").read_text(encoding="utf-8"))] == ["giki"]
+
+        # Curator corrects `deadline` (via FieldEditor -> saveFieldOverride)
+        # and leaves `programs` as-is, then clicks Approve. The override
+        # captures `original` (the value the curator saw) same as the real
+        # admin app does.
+        overrides = {
+            "giki": {
+                "deadline": _OverrideEntry(
+                    field=Field(value="15 Aug 2026", confidence=1.0, note="human-verified"),
+                    original="10 Aug 2026",
+                ),
+            }
+        }
+        monkeypatch.setattr(run_full, "fetch_overrides", lambda *a, **k: overrides)
+
+        # The hash the FIXED UI submits: deadline replaced with the edited
+        # value, programs left at its original (still low-confidence) value
+        # -- exactly what applyFieldEdits produces and what stage_5_publish
+        # will compute post-merge_overrides.
+        fixed_decision_record = ExtractedRecord(
+            institution_id="giki",
+            campus=None,
+            source_url="https://giki.edu.pk/admissions/",
+            fetched_at="2026-07-09T00:00:00Z",
+            chunk_id="giki",
+            degree_level=DegreeLevel(value="Undergraduate"),
+            constituent_college=NULL_FIELD,
+            deadline=Field(value="15 Aug 2026", confidence=1.0),
+            programs=Field(value=["BS CS"], confidence=0.4),
+        )
+        fixed_hash = content_hash(fixed_decision_record)
+        monkeypatch.setattr(
+            run_full, "fetch_review_decisions",
+            lambda *a, **k: {"giki": {"decision": "approved", "content_hash": fixed_hash}},
+        )
+
+        # Run 2: same extracted data as run 1 (the pipeline re-scraped and
+        # extracted the same low-confidence values -- only the curator's
+        # override/decision are new).
+        rc2 = run_full.stage_5_publish(extracted_dir, publish_dir)
+
+        assert rc2 == 0
+        published = json.loads((publish_dir / "records.json").read_text(encoding="utf-8"))
+        queued = json.loads((publish_dir / "needs_review.json").read_text(encoding="utf-8"))
+        assert [r["chunk_id"] for r in published] == ["giki"]
+        assert published[0]["deadline"]["value"] == "15 Aug 2026"  # curator's correction applied
+        assert published[0]["programs"]["value"] == ["BS CS"]  # unedited field preserved as-is
+        assert queued == []  # published, not stuck re-queued
+
+    def test_stale_pre_edit_hash_would_have_left_it_stuck_in_the_queue(self, tmp_path, monkeypatch):
+        """Documents the bug this fix resolves: if the decision had been
+        keyed on the STALE pre-edit hash (the old, broken behavior), the
+        approval would never match post-merge content_hash and the record
+        would incorrectly remain queued forever, even though a curator
+        explicitly approved it."""
+        extracted_dir = tmp_path / "extracted"
+        publish_dir = tmp_path / "publish"
+        monkeypatch.setattr(run_full, "fetch_review_settings", lambda *a, **k: {"enabled": True, "threshold": 0.8})
+        _write_extracted_record(
+            extracted_dir, "giki.json", deadline_confidence=0.5,
+            programs={"value": ["BS CS"], "confidence": 0.4, "note": None},
+        )
+
+        overrides = {
+            "giki": {
+                "deadline": _OverrideEntry(
+                    field=Field(value="15 Aug 2026", confidence=1.0, note="human-verified"),
+                    original="10 Aug 2026",
+                ),
+            }
+        }
+        monkeypatch.setattr(run_full, "fetch_overrides", lambda *a, **k: overrides)
+
+        # The STALE hash: computed from the record as it looked BEFORE the
+        # edit (what the old, buggy ReviewQueue.jsx would have submitted).
+        stale_decision_record = ExtractedRecord(
+            institution_id="giki",
+            campus=None,
+            source_url="https://giki.edu.pk/admissions/",
+            fetched_at="2026-07-09T00:00:00Z",
+            chunk_id="giki",
+            degree_level=DegreeLevel(value="Undergraduate"),
+            constituent_college=NULL_FIELD,
+            deadline=Field(value="10 Aug 2026", confidence=0.5),
+            programs=Field(value=["BS CS"], confidence=0.4),
+        )
+        stale_hash = content_hash(stale_decision_record)
+        monkeypatch.setattr(
+            run_full, "fetch_review_decisions",
+            lambda *a, **k: {"giki": {"decision": "approved", "content_hash": stale_hash}},
+        )
+
+        rc = run_full.stage_5_publish(extracted_dir, publish_dir)
+
+        assert rc == 0
+        published = json.loads((publish_dir / "records.json").read_text(encoding="utf-8"))
+        queued = json.loads((publish_dir / "needs_review.json").read_text(encoding="utf-8"))
+        assert published == []
+        assert [r["chunk_id"] for r in queued] == ["giki"]  # stuck -- this is the bug the fix avoids

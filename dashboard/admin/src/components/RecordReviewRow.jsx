@@ -54,7 +54,7 @@ function toInputText(value) {
   return String(value);
 }
 
-function FieldEditor({ record, fieldName }) {
+function FieldEditor({ record, fieldName, onFieldSaved }) {
   const published = record[fieldName] || {};
 
   const [editing, setEditing] = useState(false);
@@ -96,6 +96,7 @@ function FieldEditor({ record, fieldName }) {
       setSavedValue(value);
       setStatus("saved");
       setEditing(false);
+      onFieldSaved?.(fieldName, value);
     } catch (e) {
       setStatus(e?.message || "Save failed.");
     }
@@ -168,7 +169,7 @@ function FieldEditor({ record, fieldName }) {
   );
 }
 
-export default function RecordReviewRow({ record }) {
+export default function RecordReviewRow({ record, onFieldSaved }) {
   return (
     <section className="card record">
       <header className="record__head">
@@ -179,7 +180,7 @@ export default function RecordReviewRow({ record }) {
       </header>
       <div className="record__fields">
         {OVERRIDABLE_FIELDS.map((fieldName) => (
-          <FieldEditor key={fieldName} record={record} fieldName={fieldName} />
+          <FieldEditor key={fieldName} record={record} fieldName={fieldName} onFieldSaved={onFieldSaved} />
         ))}
       </div>
     </section>

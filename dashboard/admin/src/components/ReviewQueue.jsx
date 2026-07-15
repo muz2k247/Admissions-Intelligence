@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { fetchNeedsReviewRecords, submitReviewDecision } from "../api/review";
+import { applyFieldEdits } from "../lib/reviewRecord";
 import RecordReviewRow from "./RecordReviewRow";
 
 const FIELD_LABELS = {
@@ -11,11 +12,19 @@ const FIELD_LABELS = {
 
 function QueueItem({ record, onDecided }) {
   const [status, setStatus] = useState(null); // null | "saving" | error string
+  // Fields the curator has corrected THIS session, via RecordReviewRow's
+  // FieldEditor -- kept here (not just inside FieldEditor's own local state)
+  // so decide() can hash the record as it will exist AFTER stage_5_publish
+  // merges the same override, not the stale pre-edit values. Without this,
+  // approving right after an edit hashes values the pipeline will never
+  // recompute, so the decision looks stale and the record silently re-queues.
+  const [edits, setEdits] = useState({});
 
   async function decide(decision) {
     setStatus("saving");
     try {
-      await submitReviewDecision(record.chunk_id, record, decision);
+      const effectiveRecord = applyFieldEdits(record, edits);
+      await submitReviewDecision(record.chunk_id, effectiveRecord, decision);
       onDecided(record.chunk_id);
     } catch (e) {
       setStatus(e?.message || "Failed to save decision.");
@@ -29,7 +38,10 @@ function QueueItem({ record, onDecided }) {
           Flagged for review: {record.flagged_fields.map((f) => FIELD_LABELS[f] || f).join(", ")}
         </p>
       )}
-      <RecordReviewRow record={record} />
+      <RecordReviewRow
+        record={record}
+        onFieldSaved={(fieldName, value) => setEdits((prev) => ({ ...prev, [fieldName]: value }))}
+      />
       <div className="queue-item__actions">
         <button className="btn btn--primary" onClick={() => decide("approved")} disabled={status === "saving"}>
           {status === "saving" ? "Saving…" : "Approve"}
