@@ -1,5 +1,10 @@
 import { useEffect, useState } from "react";
-import { deleteInstitution, fetchPublishedInstitutions, saveInstitution } from "../api/institutions";
+import {
+  deleteInstitution,
+  fetchLiveInstitutionTombstones,
+  fetchPublishedInstitutions,
+  saveInstitution,
+} from "../api/institutions";
 import InstitutionForm from "./InstitutionForm";
 
 // Note: `constituent_colleges` (per-source, admitting-body institutions like
@@ -48,6 +53,9 @@ export default function InstitutionsManager() {
   const [institutions, setInstitutions] = useState(null);
   const [error, setError] = useState(null);
   const [editingId, setEditingId] = useState(null); // null | institutionId
+  const [adding, setAdding] = useState(false);
+  const [existingIds, setExistingIds] = useState(null); // null until openAddForm() resolves
+  const [checkingIds, setCheckingIds] = useState(false);
   const [saveError, setSaveError] = useState(null);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
@@ -65,6 +73,41 @@ export default function InstitutionsManager() {
 
   const editingInstitution = institutions?.find((i) => i.id === editingId) ?? null;
 
+  /* Live-check existing ids before showing the add form -- institutions.json
+   * (fetchPublishedInstitutions, what `institutions` state holds) only
+   * reflects Firestore as of the LAST pipeline publish, up to a week stale
+   * per .github/workflows/pipeline.yml's cron. Combining the published list
+   * with a fresh read of the whole Firestore collection closes that gap: an
+   * id counts as taken if it's in the published list AND not tombstoned
+   * live, or if it's a live non-tombstoned Firestore doc not yet published.
+   * A tombstoned id is deliberately left OUT (reusable) -- see
+   * fetchLiveInstitutionTombstones's docstring. This still leaves a much
+   * smaller, accepted race between this check and the eventual save (two
+   * curators clicking "Add" within the same short window), matching this
+   * codebase's existing "not transactional, fine at 1-2 curator scale"
+   * precedent (api/overrides.js, saveInstitution/deleteInstitution here). */
+  async function openAddForm() {
+    setCheckingIds(true);
+    setSaveError(null);
+    try {
+      const tombstones = await fetchLiveInstitutionTombstones();
+      const ids = new Set();
+      for (const inst of institutions) {
+        if (tombstones.get(inst.id) !== true) ids.add(inst.id);
+      }
+      for (const [id, deleted] of tombstones) {
+        if (!deleted) ids.add(id);
+      }
+      setExistingIds(ids);
+      setEditingId(null);
+      setAdding(true);
+    } catch (e) {
+      setError(e?.message || "Could not check existing institution ids.");
+    } finally {
+      setCheckingIds(false);
+    }
+  }
+
   async function handleSave(institution) {
     setSaving(true);
     setSaveError(null);
@@ -75,9 +118,23 @@ export default function InstitutionsManager() {
       // institutions.json on the NEXT pipeline run (same "stale until next
       // publish" caveat already documented for the review queue/overrides),
       // so reflect it locally for the rest of this session.
-      setInstitutions((prev) =>
-        prev.map((i) => (i.id === editingId ? { id: editingId, ...institution } : i))
-      );
+      setInstitutions((prev) => prev.map((i) => (i.id === editingId ? institution : i)));
+    } catch (e) {
+      setSaveError(e?.message || "Save failed.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleCreate(institution) {
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await saveInstitution(institution.id, institution);
+      setAdding(false);
+      // Optimistic local add -- takes effect in institutions.json (and
+      // actual scraping) on the next pipeline run, same caveat as edits.
+      setInstitutions((prev) => [...prev, institution]);
     } catch (e) {
       setSaveError(e?.message || "Save failed.");
     } finally {
@@ -107,6 +164,35 @@ export default function InstitutionsManager() {
 
   return (
     <div>
+      {!editingInstitution && !adding && (
+        <div className="queue-item__actions">
+          <button className="btn btn--primary" onClick={openAddForm} disabled={checkingIds}>
+            {checkingIds ? "Checking…" : "+ Add institution"}
+          </button>
+        </div>
+      )}
+
+      {adding && (
+        <section className="card">
+          <h2>Add institution</h2>
+          <p className="muted">
+            Enter the URL manually below. (Gemini/web-search URL suggestion is a
+            planned follow-up, not built yet -- see CLAUDE.md's Phase R notes.)
+          </p>
+          <InstitutionForm
+            institutionId={null}
+            existingIds={[...existingIds]}
+            saving={saving}
+            error={saveError}
+            onSave={handleCreate}
+            onCancel={() => {
+              setAdding(false);
+              setSaveError(null);
+            }}
+          />
+        </section>
+      )}
+
       {editingInstitution && (
         <section className="card">
           <h2>Edit {editingInstitution.name}</h2>
@@ -130,6 +216,7 @@ export default function InstitutionsManager() {
             key={institution.id}
             institution={institution}
             onEdit={(i) => {
+              setAdding(false);
               setEditingId(i.id);
               setSaveError(null);
             }}

@@ -1,5 +1,18 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { VALID_FORMATS, VALID_RENDER_MODES } from "../api/institutions";
+
+// A safe Firestore-doc-id / config/institutions.yaml-style slug: lowercase
+// letters, digits, and underscores only (matches every existing id in
+// config/institutions.yaml, e.g. "giki", "uet_taxila").
+const ID_PATTERN = /^[a-z0-9_]+$/;
+
+function slugify(name) {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
 
 let _sourceKeySeq = 0;
 function _newSourceRow(source) {
@@ -63,11 +76,25 @@ function SourceRow({ source, onChange, onRemove, canRemove }) {
 }
 
 /* Shared add/edit form for one institution -- reused by InstitutionsManager
- * (edit an existing institution) and the "Add institution" flow. Always
- * round-trips the FULL institution shape on save (see api/institutions.js's
- * saveInstitution docstring for why partial patches are never safe here). */
-export default function InstitutionForm({ institutionId, initial, onCancel, onSave, saving, error }) {
+ * (edit an existing institution) and the "Add institution" flow (chunk 4).
+ * Always round-trips the FULL institution shape on save (see
+ * api/institutions.js's saveInstitution docstring for why partial patches
+ * are never safe here).
+ *
+ * institutionId === null/undefined means "creating a new institution": the
+ * form grows an editable id/slug field (auto-suggested from the name, but
+ * overridable), validated for a safe shape and checked against
+ * `existingIds` client-side. This uniqueness check is NOT atomic -- two
+ * curators could race to create the same id between this check and the
+ * write -- but the curator allowlist is effectively 1-2 people
+ * (firestore.rules), so this is an accepted gap at this scale, the same way
+ * api/institutions.js's read-then-write in saveInstitution/deleteInstitution
+ * already is. */
+export default function InstitutionForm({ institutionId, initial, existingIds, onCancel, onSave, saving, error }) {
+  const isNew = institutionId == null;
   const [name, setName] = useState(initial?.name ?? "");
+  const [id, setId] = useState(institutionId ?? "");
+  const [idTouched, setIdTouched] = useState(false);
   const [admittingBody, setAdmittingBody] = useState(initial?.admitting_body ?? false);
   const [ugPgMixed, setUgPgMixed] = useState(initial?.ug_pg_mixed ?? false);
   const [enabled, setEnabled] = useState(initial?.enabled ?? true);
@@ -75,6 +102,12 @@ export default function InstitutionForm({ institutionId, initial, onCancel, onSa
     initial?.sources?.length ? initial.sources.map(_newSourceRow) : [_newSourceRow()]
   );
   const [validationError, setValidationError] = useState(null);
+
+  useEffect(() => {
+    if (isNew && !idTouched) {
+      setId(slugify(name));
+    }
+  }, [name, isNew, idTouched]);
 
   function updateSource(index, next) {
     setSources((prev) => prev.map((s, i) => (i === index ? next : s)));
@@ -97,6 +130,20 @@ export default function InstitutionForm({ institutionId, initial, onCancel, onSa
       setValidationError("Name can't be empty.");
       return;
     }
+
+    let finalId = institutionId;
+    if (isNew) {
+      finalId = id.trim();
+      if (!finalId || !ID_PATTERN.test(finalId)) {
+        setValidationError("ID must be lowercase letters, digits, and underscores only (e.g. \"giki\", \"uet_taxila\").");
+        return;
+      }
+      if (existingIds?.includes(finalId)) {
+        setValidationError(`"${finalId}" is already in use by another institution -- choose a different ID.`);
+        return;
+      }
+    }
+
     if (sources.length === 0) {
       setValidationError("An institution needs at least one source.");
       return;
@@ -112,6 +159,7 @@ export default function InstitutionForm({ institutionId, initial, onCancel, onSa
     }
 
     onSave({
+      id: finalId,
       name: trimmedName,
       admitting_body: admittingBody,
       ug_pg_mixed: ugPgMixed,
@@ -127,7 +175,21 @@ export default function InstitutionForm({ institutionId, initial, onCancel, onSa
         <input className="input" value={name} onChange={(e) => setName(e.target.value)} aria-label="Institution name" />
       </label>
 
-      {institutionId && (
+      {isNew ? (
+        <label className="settings-panel__row settings-panel__row--column">
+          ID (slug)
+          <input
+            className="input"
+            value={id}
+            onChange={(e) => {
+              setIdTouched(true);
+              setId(e.target.value);
+            }}
+            aria-label="Institution ID"
+          />
+          <small className="hint">Lowercase letters, digits, and underscores only. Can't be changed after saving.</small>
+        </label>
+      ) : (
         <p className="muted institution-form__id">id: {institutionId}</p>
       )}
 

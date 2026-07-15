@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, setDoc } from "firebase/firestore";
 import { db, auth } from "../firebase";
 
 // The admin app lists institutions by fetching the PUBLIC site's static
@@ -31,6 +31,24 @@ export async function fetchPublishedInstitutions() {
 export async function fetchInstitutionDoc(institutionId) {
   const snap = await getDoc(doc(db, "institutions", institutionId));
   return snap.exists() ? snap.data() : null;
+}
+
+/* Every id currently live in the `institutions` collection, mapped to
+ * whether it's tombstoned (`deleted: true`). Used to correct a real
+ * staleness gap in the "create new institution" id-uniqueness check:
+ * fetchPublishedInstitutions() only reflects Firestore state as of the
+ * LAST pipeline publish (up to a week old per .github/workflows/
+ * pipeline.yml's cron schedule), so a very recently added -- or deleted --
+ * institution needs a live check, not the stale published snapshot, or a
+ * curator could unknowingly pick an id collision that silently clobbers
+ * another institution's doc on save (setDoc is a full replace, not a
+ * merge). A tombstoned id is intentionally NOT treated as "taken" --
+ * recreating a previously-deleted id is a legitimate curator action. */
+export async function fetchLiveInstitutionTombstones() {
+  const snap = await getDocs(collection(db, "institutions"));
+  const tombstones = new Map();
+  snap.forEach((d) => tombstones.set(d.id, d.data()?.deleted === true));
+  return tombstones;
 }
 
 /* Write the FULL institution shape to institutions/{institutionId} --
