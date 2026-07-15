@@ -97,6 +97,7 @@ class TestStage5Publish:
 
     def test_curator_override_is_merged_into_published_record(self, tmp_path, monkeypatch):
         from extraction.schema import Field
+        from pipeline.overrides import _OverrideEntry
 
         extracted_dir = tmp_path / "extracted"
         publish_dir = tmp_path / "publish"
@@ -104,7 +105,7 @@ class TestStage5Publish:
         _write_extracted_record(extracted_dir, "giki.json", chunk_id="giki")
         monkeypatch.setattr(
             run_full, "fetch_overrides",
-            lambda *a, **k: {"giki": {"programs": Field(value=["BS CS"], confidence=1.0, note="human-verified")}},
+            lambda *a, **k: {"giki": {"programs": _OverrideEntry(field=Field(value=["BS CS"], confidence=1.0, note="human-verified"))}},
         )
 
         rc = run_full.stage_5_publish(extracted_dir, publish_dir)

@@ -22,27 +22,34 @@ raising, so a Firestore outage never blanks or fails the publish -- it just
 publishes the pipeline-extracted values without curator overrides, exactly
 as it did before Phase K. This matches the pipeline's philosophy throughout
 (stage_1_scrape, stage_4_build).
+
+Stale-override detection (Phase Q): a curator edit also captures `original`,
+the pipeline-extracted value the curator was looking at when they made the
+correction (dashboard/admin/src/api/overrides.js already writes this on
+every save; this module simply started reading it back). If a later re-
+scrape produces a fresh value that no longer matches `original`, the source
+page changed since the correction was made -- applying the (now stale)
+override would silently keep publishing a value the curator never actually
+verified against the new content. merge_overrides drops such overrides
+instead, letting the fresh extracted value flow through the confidence gate
+(extraction/review_gate.py) like any other unreviewed value.
 """
 from __future__ import annotations
 
 import dataclasses
-import json
 import sys
-from pathlib import Path
 
 import requests
 
 from extraction.schema import Field, ExtractedRecord
+from pipeline._firestore import (
+    FIRESTORE_EXCEPTIONS,
+    decode_value as _decode_firestore_value,
+    fetch_collection,
+    load_project_id as _load_project_id,
+)
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-_FIREBASERC = REPO_ROOT / ".firebaserc"
-_FIRESTORE_BASE = "https://firestore.googleapis.com/v1"
 _DEFAULT_TIMEOUT = 30
-# Bounds the pagination loop so a misbehaving server that keeps echoing a
-# non-empty nextPageToken can't hang the unattended publish forever. At the
-# default Firestore page size this covers far more overrides than the ~dozens
-# this project will ever have; hitting it means something's wrong, so warn.
-_MAX_PAGES = 100
 
 # Only these record fields are curator-overridable. Matches the four Field-
 # typed attributes the field-extractor produces; degree_level (a DegreeLevel,
@@ -50,55 +57,18 @@ _MAX_PAGES = 100
 # classifier decision (CLAUDE.md hard rule 3).
 _OVERRIDABLE_FIELDS = ("deadline", "programs", "constituent_college", "admissions_open")
 
-
-def _load_project_id() -> str | None:
-    """Project id from .firebaserc (never hardcoded twice -- same source the
-    deploy uses). None if unreadable, so callers degrade to no-overrides."""
-    try:
-        with _FIREBASERC.open("r", encoding="utf-8") as f:
-            data = json.load(f)
-        return data["projects"]["default"]
-    except (OSError, json.JSONDecodeError, KeyError, TypeError):
-        return None
+# Sentinel distinguishing "this override doc predates Phase Q and never
+# captured `original`" from "original was captured and is null" -- the
+# former keeps the pre-Phase-Q apply-unconditionally behavior (no stale-
+# override migration needed for existing corrections), the latter is a
+# real baseline to compare against.
+_NO_ORIGINAL_CAPTURED = object()
 
 
-def _decode_firestore_value(value: dict):
-    """Decode one Firestore REST typed-JSON value into a plain Python value.
-
-    Firestore's REST API wraps every scalar in a type tag
-    (e.g. {"stringValue": "x"}, {"doubleValue": 1.0}) and nests objects/
-    arrays as mapValue/arrayValue -- this unwraps that recursively into the
-    plain shape the rest of the pipeline uses. Unknown/unhandled tags decode
-    to None (an honest "couldn't read it", never a guess)."""
-    if not isinstance(value, dict) or not value:
-        return None
-    tag, inner = next(iter(value.items()))
-    if tag == "nullValue":
-        return None
-    if tag == "stringValue":
-        return inner
-    if tag == "booleanValue":
-        return bool(inner)
-    if tag == "integerValue":
-        # Firestore returns integers as strings in JSON.
-        try:
-            return int(inner)
-        except (TypeError, ValueError):
-            return None
-    if tag == "doubleValue":
-        try:
-            return float(inner)
-        except (TypeError, ValueError):
-            return None
-    if tag == "timestampValue":
-        return inner  # ISO-8601 string, kept as-is
-    if tag == "arrayValue":
-        values = inner.get("values", []) if isinstance(inner, dict) else []
-        return [_decode_firestore_value(v) for v in values]
-    if tag == "mapValue":
-        fields = inner.get("fields", {}) if isinstance(inner, dict) else {}
-        return {k: _decode_firestore_value(v) for k, v in fields.items()}
-    return None
+@dataclasses.dataclass(frozen=True)
+class _OverrideEntry:
+    field: Field
+    original: object = _NO_ORIGINAL_CAPTURED
 
 
 def _decode_document(doc: dict) -> tuple[str, dict[str, Field]] | None:
@@ -106,10 +76,26 @@ def _decode_document(doc: dict) -> tuple[str, dict[str, Field]] | None:
 
     The document id (chunk_id) is the last path segment of doc["name"]. Only
     the `fields` map's overridable entries are converted to Field objects;
-    audit metadata a curator's edit also stores (original, verified_by,
-    verified_at) is ignored here -- it lives in Firestore as the audit trail,
-    not in the published record. A field whose value/confidence violates the
-    Field invariant degrades to skipped (not applied) rather than raising."""
+    audit metadata a curator's edit also stores (verified_by, verified_at)
+    is ignored here -- it lives in Firestore as the audit trail, not in the
+    published record. `original` is the one piece of audit metadata this
+    module does read (see module docstring) -- decoded via
+    `_decode_document_with_originals` below, which this function delegates
+    to and then strips back down to the plain {field_name: Field} shape for
+    backward-compatible callers/tests. A field whose value/confidence
+    violates the Field invariant degrades to skipped (not applied) rather
+    than raising."""
+    decoded = _decode_document_with_originals(doc)
+    if decoded is None:
+        return None
+    chunk_id, entries = decoded
+    return chunk_id, {name: entry.field for name, entry in entries.items()}
+
+
+def _decode_document_with_originals(doc: dict) -> tuple[str, dict[str, "_OverrideEntry"]] | None:
+    """Like _decode_document, but also carries each field's `original`
+    (the extracted value the curator saw when they made the correction),
+    used by merge_overrides to detect a stale override."""
     name = doc.get("name")
     if not isinstance(name, str) or not name:
         return None
@@ -123,7 +109,7 @@ def _decode_document(doc: dict) -> tuple[str, dict[str, Field]] | None:
     if not isinstance(fields_map, dict):
         return chunk_id, {}
 
-    result: dict[str, Field] = {}
+    result: dict[str, _OverrideEntry] = {}
     for field_name in _OVERRIDABLE_FIELDS:
         entry = fields_map.get(field_name)
         if not isinstance(entry, dict):
@@ -138,7 +124,7 @@ def _decode_document(doc: dict) -> tuple[str, dict[str, Field]] | None:
         if isinstance(confidence, int) and not isinstance(confidence, bool):
             confidence = float(confidence)
         try:
-            result[field_name] = Field(
+            field = Field(
                 value=entry.get("value"),
                 confidence=confidence,
                 note=entry.get("note"),
@@ -148,6 +134,9 @@ def _decode_document(doc: dict) -> tuple[str, dict[str, Field]] | None:
                 f"WARN  override {chunk_id!r}.{field_name}: invalid field ({exc}) -- ignored",
                 file=sys.stderr,
             )
+            continue
+        original = entry["original"] if "original" in entry else _NO_ORIGINAL_CAPTURED
+        result[field_name] = _OverrideEntry(field=field, original=original)
     return chunk_id, result
 
 
@@ -162,65 +151,64 @@ def fetch_overrides(
     Returns {} on ANY failure (no project id, network error, non-200,
     malformed JSON) -- a Firestore problem must never block or blank the
     publish. Paginates via nextPageToken (unlikely to matter at ~dozens of
-    overrides, but correct)."""
+    overrides, but correct). Each field entry carries `original` alongside
+    its Field (see module docstring) for merge_overrides' stale-override
+    check."""
     project_id = project_id or _load_project_id()
     if not project_id:
         print("WARN  no Firebase project id (.firebaserc unreadable) -- publishing without curator overrides", file=sys.stderr)
         return {}
 
     session = session or requests.Session()
-    url = f"{_FIRESTORE_BASE}/projects/{project_id}/databases/(default)/documents/overrides"
-    overrides: dict[str, dict[str, Field]] = {}
-    page_token: str | None = None
+    overrides: dict[str, dict[str, _OverrideEntry]] = {}
 
-    # The exception set is deliberately broad (adds AttributeError/TypeError/
-    # KeyError beyond the obvious network/JSON errors): "never raise, always
-    # return {}" is a hard requirement here (a Firestore problem must never
-    # crash or blank the publish), so any malformed-shape response -- e.g. a
-    # JSON body that's a list not an object, so body.get() would AttributeError
-    # -- must degrade, not propagate.
     try:
-        for _ in range(_MAX_PAGES):
-            params = {"pageToken": page_token} if page_token else None
-            resp = session.get(url, params=params, timeout=timeout)
-            resp.raise_for_status()
-            body = resp.json()
-            if not isinstance(body, dict):
-                raise ValueError(f"Firestore response was not a JSON object: {type(body).__name__}")
-            documents = body.get("documents", [])
-            if not isinstance(documents, list):
-                raise ValueError("Firestore response 'documents' was not a list")
-            for doc in documents:
-                if not isinstance(doc, dict):
-                    continue
-                decoded = _decode_document(doc)
-                if decoded is not None:
-                    chunk_id, fields = decoded
-                    overrides[chunk_id] = fields
-            page_token = body.get("nextPageToken")
-            if not page_token:
-                break
-        else:
-            # Ran the full _MAX_PAGES without a terminating (empty) token --
-            # a misbehaving server. Keep what we gathered rather than hang.
-            print(f"WARN  curator-overrides fetch hit the {_MAX_PAGES}-page cap -- returning partial results", file=sys.stderr)
-    except (requests.RequestException, json.JSONDecodeError, ValueError, AttributeError, TypeError, KeyError) as exc:
+        documents = fetch_collection("overrides", project_id, session, timeout)
+    except FIRESTORE_EXCEPTIONS as exc:
         print(f"WARN  could not fetch curator overrides ({exc}) -- publishing without them", file=sys.stderr)
         return {}
+
+    for doc in documents:
+        decoded = _decode_document_with_originals(doc)
+        if decoded is not None:
+            chunk_id, entries = decoded
+            overrides[chunk_id] = entries
 
     return overrides
 
 
-def merge_overrides(record: ExtractedRecord, overrides: dict[str, dict[str, Field]]) -> ExtractedRecord:
+def merge_overrides(record: ExtractedRecord, overrides: dict[str, dict[str, "_OverrideEntry"]]) -> ExtractedRecord:
     """Return `record` with any curator-overridden fields replaced (pure --
     never mutates the input). Only fields present in this chunk's override
     entry are touched; everything else, including source_url (hard rule 4)
     and degree_level, is preserved exactly. A chunk with no override entry
-    returns unchanged."""
+    returns unchanged.
+
+    Stale-override detection (Phase Q): an entry whose `original` no longer
+    matches this record's FRESH (pre-override) value for that field means
+    the source changed since the curator's correction -- that override is
+    dropped (a WARN is printed) and the fresh extracted value flows through
+    untouched, to be evaluated by the confidence gate like any other
+    unreviewed value. Entries with no captured `original` (override docs
+    written before this check existed) keep the old apply-unconditionally
+    behavior."""
     chunk_overrides = overrides.get(record.chunk_id)
     if not chunk_overrides:
         return record
-    replacements = {name: field for name, field in chunk_overrides.items() if name in _OVERRIDABLE_FIELDS}
+    replacements: dict[str, Field] = {}
+    for name, entry in chunk_overrides.items():
+        if name not in _OVERRIDABLE_FIELDS:
+            continue
+        if entry.original is not _NO_ORIGINAL_CAPTURED:
+            fresh_value = getattr(record, name).value
+            if entry.original != fresh_value:
+                print(
+                    f"WARN  override {record.chunk_id!r}.{name}: stale (source changed since "
+                    "correction) -- using fresh extracted value instead",
+                    file=sys.stderr,
+                )
+                continue
+        replacements[name] = entry.field
     if not replacements:
         return record
     return dataclasses.replace(record, **replacements)

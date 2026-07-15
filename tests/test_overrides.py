@@ -1,5 +1,6 @@
 """Tests for pipeline/overrides.py — the curator-override read/merge backbone
-of the admin CMS (Phase K).
+of the admin CMS (Phase K), extended in Phase Q with stale-override
+detection via the `original` field.
 
 No live network / no live Firestore: the Firestore REST API is mocked with
 FakeSession, matching this project's QA policy (tests never hit a live
@@ -13,7 +14,10 @@ import requests
 
 from extraction.schema import DegreeLevel, ExtractedRecord, Field, NULL_FIELD
 from pipeline.overrides import (
+    _NO_ORIGINAL_CAPTURED,
+    _OverrideEntry,
     _decode_document,
+    _decode_document_with_originals,
     _decode_firestore_value,
     fetch_overrides,
     merge_overrides,
@@ -64,23 +68,32 @@ def _fs_string(v):
     return {"stringValue": v}
 
 
-def _fs_field_map(value, confidence, note=None):
-    """Build the Firestore typed-JSON for one override field's inner map."""
-    fields = {}
+def _fs_typed(value):
+    """Firestore typed-JSON for a plain Python value (str, list[str], or None)."""
+    if value is None:
+        return {"nullValue": None}
     if isinstance(value, list):
-        fields["value"] = {"arrayValue": {"values": [{"stringValue": v} for v in value]}}
-    elif value is None:
-        fields["value"] = {"nullValue": None}
-    else:
-        fields["value"] = {"stringValue": value}
+        return {"arrayValue": {"values": [{"stringValue": v} for v in value]}}
+    return {"stringValue": value}
+
+
+def _fs_field_map(value, confidence, note=None, original=_NO_ORIGINAL_CAPTURED):
+    """Build the Firestore typed-JSON for one override field's inner map.
+    `original` defaults to the sentinel meaning "not captured" (pre-Phase-Q
+    doc) -- pass an explicit value (including None) to simulate a Phase-Q
+    write that did capture it."""
+    fields = {"value": _fs_typed(value)}
     fields["confidence"] = {"doubleValue": confidence} if confidence is not None else {"nullValue": None}
     fields["note"] = {"stringValue": note} if note is not None else {"nullValue": None}
+    if original is not _NO_ORIGINAL_CAPTURED:
+        fields["original"] = _fs_typed(original)
     return {"mapValue": {"fields": fields}}
 
 
 def _fs_document(chunk_id, field_overrides):
     """Build a full Firestore REST document for an overrides/{chunk_id} doc.
-    field_overrides: {field_name: (value, confidence, note)}."""
+    field_overrides: {field_name: (value, confidence, note)} or
+    {field_name: (value, confidence, note, original)}."""
     inner_fields = {name: _fs_field_map(*spec) for name, spec in field_overrides.items()}
     return {
         "name": f"projects/test-proj/databases/(default)/documents/overrides/{chunk_id}",
@@ -105,6 +118,12 @@ def _record(chunk_id="giki", **overrides):
     )
     base.update(overrides)
     return ExtractedRecord(**base)
+
+
+def _entry(value, confidence=1.0, note="human-verified", original=_NO_ORIGINAL_CAPTURED):
+    """Build an _OverrideEntry the way merge_overrides expects it, mirroring
+    what fetch_overrides would have decoded."""
+    return _OverrideEntry(field=Field(value=value, confidence=confidence, note=note), original=original)
 
 
 # ---------------------------------------------------------------------------
@@ -144,7 +163,7 @@ class TestDecodeFirestoreValue:
 
 
 # ---------------------------------------------------------------------------
-# _decode_document
+# _decode_document / _decode_document_with_originals
 # ---------------------------------------------------------------------------
 
 class TestDecodeDocument:
@@ -156,17 +175,18 @@ class TestDecodeDocument:
         assert fields["deadline"] == Field(value="2026-08-15", confidence=1.0, note="human-verified")
         assert "programs" not in fields  # not present in the doc
 
-    def test_ignores_audit_metadata_keys(self):
-        # A real curator edit also stores original/verified_by/verified_at
-        # inside the field map -- Field.from_dict-style construction only
-        # reads value/confidence/note, so extra keys are harmless.
+    def test_ignores_audit_metadata_keys_other_than_original(self):
+        # A real curator edit also stores verified_by/verified_at inside the
+        # field map -- _decode_document only reads value/confidence/note (and
+        # _decode_document_with_originals additionally reads `original`), so
+        # verified_by/verified_at are harmless extras.
         doc = _fs_document("giki", {})
         doc["fields"]["fields"]["mapValue"]["fields"]["deadline"] = {
             "mapValue": {"fields": {
                 "value": {"stringValue": "2026-08-15"},
                 "confidence": {"doubleValue": 1.0},
                 "note": {"stringValue": "human-verified"},
-                "original": {"mapValue": {"fields": {"value": {"stringValue": "10 Aug 2026"}}}},
+                "original": {"stringValue": "10 Aug 2026"},
                 "verified_by": {"stringValue": "uid-123"},
                 "verified_at": {"timestampValue": "2026-07-13T10:00:00Z"},
             }}
@@ -225,6 +245,42 @@ class TestDecodeDocument:
         assert isinstance(fields["deadline"].confidence, float)
 
 
+class TestDecodeDocumentWithOriginals:
+    def test_original_is_captured_when_present(self):
+        doc = _fs_document("giki", {"deadline": ("2026-08-15", 1.0, "human-verified", "10 Aug 2026")})
+        chunk_id, entries = _decode_document_with_originals(doc)
+
+        assert chunk_id == "giki"
+        assert entries["deadline"].field == Field(value="2026-08-15", confidence=1.0, note="human-verified")
+        assert entries["deadline"].original == "10 Aug 2026"
+
+    def test_original_null_is_a_real_captured_baseline_not_the_sentinel(self):
+        # original=None (the field was genuinely null when first corrected)
+        # must be distinguished from "original never captured at all".
+        doc = _fs_document("giki", {"deadline": ("2026-08-15", 1.0, "human-verified", None)})
+        _, entries = _decode_document_with_originals(doc)
+        assert entries["deadline"].original is None
+        assert entries["deadline"].original is not _NO_ORIGINAL_CAPTURED
+
+    def test_missing_original_key_decodes_to_sentinel(self):
+        # A pre-Phase-Q override doc never wrote `original` at all.
+        doc = _fs_document("giki", {"deadline": ("2026-08-15", 1.0, "human-verified")})
+        _, entries = _decode_document_with_originals(doc)
+        assert entries["deadline"].original is _NO_ORIGINAL_CAPTURED
+
+    def test_programs_list_original_decodes(self):
+        doc = _fs_document("giki", {"programs": (["BS CS"], 1.0, "human-verified", ["BS EE"])})
+        _, entries = _decode_document_with_originals(doc)
+        assert entries["programs"].original == ["BS EE"]
+
+    def test_decode_document_strips_originals_back_to_plain_fields(self):
+        # _decode_document is still the plain-Field view used by callers/
+        # tests that don't care about staleness.
+        doc = _fs_document("giki", {"deadline": ("2026-08-15", 1.0, "human-verified", "10 Aug 2026")})
+        chunk_id, fields = _decode_document(doc)
+        assert fields == {"deadline": Field(value="2026-08-15", confidence=1.0, note="human-verified")}
+
+
 # ---------------------------------------------------------------------------
 # fetch_overrides
 # ---------------------------------------------------------------------------
@@ -237,7 +293,7 @@ class TestFetchOverrides:
         result = fetch_overrides(project_id="test-proj", session=session)
 
         assert set(result) == {"giki"}
-        assert result["giki"]["deadline"] == Field(value="2026-08-15", confidence=1.0, note="human-verified")
+        assert result["giki"]["deadline"].field == Field(value="2026-08-15", confidence=1.0, note="human-verified")
 
     def test_follows_pagination(self):
         page1 = {"documents": [_fs_document("giki", {"deadline": ("2026-08-15", 1.0, None)})], "nextPageToken": "tok"}
@@ -304,7 +360,7 @@ class TestFetchOverrides:
         result = fetch_overrides(project_id="test-proj", session=session)
 
         assert set(result) == {"giki"}
-        assert result["giki"]["deadline"].value == "2026-08-15"
+        assert result["giki"]["deadline"].field.value == "2026-08-15"
 
     def test_pagination_cap_prevents_infinite_loop(self):
         # A server that always echoes a non-empty nextPageToken must not hang
@@ -339,6 +395,14 @@ class TestFetchOverrides:
         # deadline's value decoded to [] (empty array) -> a valid Field, no crash
         assert "giki" in result
 
+    def test_original_round_trips_through_fetch(self):
+        payload = {"documents": [_fs_document("giki", {"deadline": ("2026-08-15", 1.0, "human-verified", "10 Aug 2026")})]}
+        session = FakeSession(FakeResponse(payload))
+
+        result = fetch_overrides(project_id="test-proj", session=session)
+
+        assert result["giki"]["deadline"].original == "10 Aug 2026"
+
 
 # ---------------------------------------------------------------------------
 # merge_overrides
@@ -347,7 +411,7 @@ class TestFetchOverrides:
 class TestMergeOverrides:
     def test_applies_overridden_field(self):
         record = _record(chunk_id="giki", deadline=NULL_FIELD)
-        overrides = {"giki": {"deadline": Field(value="2026-08-15", confidence=1.0, note="human-verified")}}
+        overrides = {"giki": {"deadline": _entry("2026-08-15")}}
 
         merged = merge_overrides(record, overrides)
 
@@ -355,7 +419,7 @@ class TestMergeOverrides:
 
     def test_preserves_untouched_fields_and_source_url(self):
         record = _record(chunk_id="giki")
-        overrides = {"giki": {"programs": Field(value=["BS CS"], confidence=1.0, note="human-verified")}}
+        overrides = {"giki": {"programs": _entry(["BS CS"])}}
 
         merged = merge_overrides(record, overrides)
 
@@ -366,7 +430,7 @@ class TestMergeOverrides:
 
     def test_no_override_entry_returns_record_unchanged(self):
         record = _record(chunk_id="giki")
-        merged = merge_overrides(record, {"other_chunk": {"deadline": Field(value="x", confidence=1.0)}})
+        merged = merge_overrides(record, {"other_chunk": {"deadline": _entry("x")}})
         assert merged is record
 
     def test_empty_overrides_returns_record_unchanged(self):
@@ -375,7 +439,7 @@ class TestMergeOverrides:
 
     def test_does_not_mutate_input_record(self):
         record = _record(chunk_id="giki", deadline=NULL_FIELD)
-        overrides = {"giki": {"deadline": Field(value="2026-08-15", confidence=1.0, note="human-verified")}}
+        overrides = {"giki": {"deadline": _entry("2026-08-15")}}
 
         merge_overrides(record, overrides)
 
@@ -383,10 +447,10 @@ class TestMergeOverrides:
         assert record.deadline == NULL_FIELD
 
     def test_ignores_non_overridable_field_names(self):
-        # A stray key that isn't one of the three overridable Field attributes
+        # A stray key that isn't one of the four overridable Field attributes
         # must never reach dataclasses.replace (which would raise).
         record = _record(chunk_id="giki")
-        overrides = {"giki": {"degree_level": Field(value="x", confidence=1.0), "programs": Field(value=["BS CS"], confidence=1.0)}}
+        overrides = {"giki": {"degree_level": _entry("x"), "programs": _entry(["BS CS"])}}
 
         merged = merge_overrides(record, overrides)
 
@@ -398,11 +462,7 @@ class TestMergeOverrides:
             chunk_id="giki",
             admissions_open=Field(value="Closed", confidence=0.8),
         )
-        overrides = {
-            "giki": {
-                "admissions_open": Field(value="Open", confidence=1.0, note="human-verified"),
-            }
-        }
+        overrides = {"giki": {"admissions_open": _entry("Open")}}
 
         merged = merge_overrides(record, overrides)
 
@@ -427,14 +487,101 @@ class TestMergeOverrides:
             chunk_id="giki",
             admissions_open=Field(value="Open", confidence=0.9),
         )
-        overrides = {
-            "giki": {"deadline": Field(value="2026-08-15", confidence=1.0, note="human-verified")},
-        }
+        overrides = {"giki": {"deadline": _entry("2026-08-15")}}
 
         merged = merge_overrides(record, overrides)
 
         assert merged.admissions_open == record.admissions_open
         assert merged.deadline == Field(value="2026-08-15", confidence=1.0, note="human-verified")
+
+
+class TestMergeOverridesStaleDetection:
+    def test_matching_original_applies_the_override(self):
+        record = _record(chunk_id="giki", deadline=Field(value="10 Aug 2026", confidence=0.85))
+        overrides = {"giki": {"deadline": _entry("2026-08-15", original="10 Aug 2026")}}
+
+        merged = merge_overrides(record, overrides)
+
+        assert merged.deadline == Field(value="2026-08-15", confidence=1.0, note="human-verified")
+
+    def test_mismatched_original_drops_the_override_uses_fresh_value(self, capsys):
+        # The institution genuinely changed its deadline after a curator
+        # corrected the old (wrong) one -- the stale correction must not
+        # keep publishing over the real, freshly-scraped value.
+        fresh = Field(value="2026-10-01", confidence=0.9)
+        record = _record(chunk_id="giki", deadline=fresh)
+        overrides = {"giki": {"deadline": _entry("2026-08-15", original="10 Aug 2026")}}
+
+        merged = merge_overrides(record, overrides)
+
+        assert merged.deadline == fresh
+        assert "stale" in capsys.readouterr().err.lower()
+
+    def test_no_captured_original_keeps_apply_unconditionally_behavior(self):
+        # Backward compatibility: an override doc written before Phase Q has
+        # no `original` at all -- must still apply, exactly like before.
+        record = _record(chunk_id="giki", deadline=Field(value="totally different", confidence=0.9))
+        overrides = {"giki": {"deadline": _entry("2026-08-15", original=_NO_ORIGINAL_CAPTURED)}}
+
+        merged = merge_overrides(record, overrides)
+
+        assert merged.deadline == Field(value="2026-08-15", confidence=1.0, note="human-verified")
+
+    def test_original_null_matches_a_currently_null_fresh_field(self):
+        # original=None means the field was genuinely null when first
+        # corrected -- if it's still null now, that's not staleness.
+        record = _record(chunk_id="giki", constituent_college=NULL_FIELD)
+        overrides = {"giki": {"constituent_college": _entry("Allied", original=None)}}
+
+        merged = merge_overrides(record, overrides)
+
+        assert merged.constituent_college == Field(value="Allied", confidence=1.0, note="human-verified")
+
+    def test_original_null_but_fresh_now_has_a_value_is_stale(self):
+        # The field was null when corrected, but a later scrape now finds a
+        # real value -- the override predates that discovery and is stale.
+        record = _record(chunk_id="giki", constituent_college=Field(value="King Edward Medical University", confidence=0.9))
+        overrides = {"giki": {"constituent_college": _entry("Allied", original=None)}}
+
+        merged = merge_overrides(record, overrides)
+
+        assert merged.constituent_college == Field(value="King Edward Medical University", confidence=0.9)
+
+    def test_programs_list_original_comparison(self):
+        record = _record(chunk_id="giki", programs=Field(value=["BS CS", "BS EE"], confidence=0.9))
+        overrides = {"giki": {"programs": _entry(["BS CS"], original=["BS CS", "BS EE"])}}
+
+        merged = merge_overrides(record, overrides)
+
+        assert merged.programs == Field(value=["BS CS"], confidence=1.0, note="human-verified")
+
+    def test_stale_and_fresh_overrides_on_the_same_chunk_are_independent(self):
+        # A strong deadline override doesn't excuse dropping a stale programs
+        # override, and vice versa -- each field's staleness is independent.
+        record = _record(
+            chunk_id="giki",
+            deadline=Field(value="10 Aug 2026", confidence=0.85),  # matches original -> applies
+            programs=Field(value=["BE EE"], confidence=0.9),  # does not match original -> stale
+        )
+        overrides = {
+            "giki": {
+                "deadline": _entry("2026-08-15", original="10 Aug 2026"),
+                "programs": _entry(["BS CS"], original=["BS CS", "BS EE"]),
+            }
+        }
+
+        merged = merge_overrides(record, overrides)
+
+        assert merged.deadline == Field(value="2026-08-15", confidence=1.0, note="human-verified")
+        assert merged.programs == Field(value=["BE EE"], confidence=0.9)  # fresh value, override dropped
+
+    def test_all_overrides_stale_returns_record_with_only_fresh_values(self):
+        record = _record(chunk_id="giki", deadline=Field(value="fresh value", confidence=0.9))
+        overrides = {"giki": {"deadline": _entry("stale corrected value", original="old original")}}
+
+        merged = merge_overrides(record, overrides)
+
+        assert merged.deadline == Field(value="fresh value", confidence=0.9)
 
 
 # ---------------------------------------------------------------------------
