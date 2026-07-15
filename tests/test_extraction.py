@@ -14,7 +14,6 @@ import pytest
 from extraction.schema import Field, NULL_FIELD, DegreeLevel, ExtractedRecord
 from extraction.fields import (
     extract_deadline,
-    extract_fee,
     extract_programs,
     extract_constituent_college,
 )
@@ -58,10 +57,10 @@ class TestField:
         assert Field(value="x", confidence=0.0).confidence == 0.0
         assert Field(value="x", confidence=1.0).confidence == 1.0
 
-    def test_to_dict_round_trip(self):
-        f = Field(value="Rs. 2000/-", confidence=0.8, note="fee note")
+    def test_to_dict_omits_nulls(self):
+        f = Field(value="10 Aug", confidence=0.8, note="date note")
         d = f.to_dict()
-        assert d == {"value": "Rs. 2000/-", "confidence": 0.8, "note": "fee note"}
+        assert d == {"value": "10 Aug", "confidence": 0.8, "note": "date note"}
         f2 = Field.from_dict(d)
         assert f2 == f
 
@@ -144,7 +143,6 @@ class TestExtractedRecord:
             degree_level=DegreeLevel(value="Undergraduate"),
             constituent_college=NULL_FIELD,
             deadline=Field(value="10 Aug 2026", confidence=0.85),
-            fee=Field(value="Rs. 2000/-", confidence=0.8),
             programs=Field(value=["BS"], confidence=0.6),
         )
 
@@ -170,7 +168,6 @@ class TestExtractedRecord:
         record = ExtractedRecord.from_dict(minimal)
         assert record.campus is None
         assert record.deadline == NULL_FIELD
-        assert record.fee == NULL_FIELD
         assert record.programs == NULL_FIELD
         assert record.constituent_college == NULL_FIELD
         assert record.degree_level.value is None
@@ -240,11 +237,11 @@ class TestExtractDeadline:
 
 
 # ---------------------------------------------------------------------------
-# fields.py — extract_deadline / extract_fee: primary/secondary keyword
-# tiering (fixes false conflicts between the real application deadline/fee
-# and an unrelated same-page deadline/fee, without suppressing genuine
+# fields.py — extract_deadline: primary/secondary keyword
+# tiering (fixes false conflicts between the real application deadline
+# and an unrelated same-page deadline, without suppressing genuine
 # conflicts -- root-caused against real scraped GIKI/UET-Taxila/NUST text,
-# see extraction/fields.py's _DEADLINE_KEYWORDS_PRIMARY/_FEE_KEYWORDS_PRIMARY
+# see extraction/fields.py's _DEADLINE_KEYWORDS_PRIMARY
 # comments)
 # ---------------------------------------------------------------------------
 
@@ -359,68 +356,6 @@ class TestExtractDeadlineLabeledMultiResolution:
         assert f.value is None
         assert "conflicting" in f.note.lower()
 
-
-# ---------------------------------------------------------------------------
-# fields.py — extract_fee
-# ---------------------------------------------------------------------------
-
-class TestExtractFee:
-    def test_no_match_returns_null_field(self):
-        f = extract_fee("No monetary information present in this text.")
-        assert f.value is None
-        assert f.confidence is None
-
-    def test_empty_text_returns_null_field(self):
-        assert extract_fee("") == NULL_FIELD
-        assert extract_fee(None) == NULL_FIELD
-
-    def test_single_clear_fee_extracted(self):
-        text = "The application fee is Rs. 2000/- payable online."
-        f = extract_fee(text)
-        assert f.value is not None
-        assert f.confidence is not None
-        assert 0.0 <= f.confidence <= 1.0
-
-    def test_conflicting_fees_yield_null_field(self):
-        text = "The application fee is Rs. 2000/-. The admission fee is PKR 3500."
-        f = extract_fee(text)
-        assert f.value is None
-        assert f.confidence is None
-        assert f.note is not None
-        assert "conflicting" in f.note.lower()
-
-    def test_consistent_repeated_fee_high_confidence(self):
-        text = "Application fee: Rs. 2000/-. Note the processing fee Rs. 2000/- is non-refundable."
-        f = extract_fee(text)
-        assert f.value is not None
-        assert f.confidence == 0.9
-
-
-# ---------------------------------------------------------------------------
-# fields.py — extract_fee: primary/secondary keyword tiering
-# ---------------------------------------------------------------------------
-
-class TestExtractFeePrimaryKeywordTiering:
-    def test_primary_fee_wins_over_unrelated_secondary_fee(self):
-        # Real pattern from UET Taxila: "Admission Application Processing
-        # Fee" (the real application fee) vs "TCAT Registration Fee" (the
-        # entry-test fee, a different thing) -- only the bare "fee" keyword
-        # links the second one, and it shouldn't count as a conflict.
-        text = (
-            "Admission Application Processing Fee: Rs. 4,000/- (Non-Refundable)\n"
-            "TCAT Registration Fee: Rs. 3,000/- (Non-Refundable)"
-        )
-        f = extract_fee(text)
-        assert f.value == "Rs. 4,000/-"
-        assert f.confidence == 0.8
-        assert f.note is None
-
-    def test_two_primaryless_secondary_fee_conflicts_still_null(self):
-        text = "Hostel fee: Rs. 5,000/-. Semester fee: Rs. 60,000/-."
-        f = extract_fee(text)
-        assert f.value is None
-        assert f.confidence is None
-        assert "conflicting" in f.note.lower()
 
 
 # ---------------------------------------------------------------------------
@@ -755,7 +690,7 @@ class TestRunChunkAndBuild:
             "campus": None,
             "source_url": "https://admissions.giki.edu.pk",
             "fetched_at": "2026-07-09T00:00:00Z",
-            "html": "<p>Last date to apply: 10 August 2026. Application fee is Rs. 2000/-. BS programs offered.</p>",
+            "html": "<p>Last date to apply: 10 August 2026. BS programs offered.</p>",
             "pdfs": [],
         }
         record.update(overrides)
@@ -811,7 +746,6 @@ class TestRunChunkAndBuild:
         assert extracted.institution_id == "giki"
         assert extracted.degree_level.value == "Undergraduate"
         assert extracted.deadline.value is not None
-        assert extracted.fee.value is not None
         assert extracted.programs.value == ["BS"]
         assert extracted.constituent_college == NULL_FIELD
 

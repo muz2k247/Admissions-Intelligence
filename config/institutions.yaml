@@ -4,7 +4,7 @@
 #
 # All entries below were verified against the institution's live site during registry-building.
 # "verified: true" means the URL was confirmed reachable and correct as of that check.
-# Dates/fees are intentionally NOT stored here — they change frequently and are the scraper's
+# Dates are intentionally NOT stored here — they change frequently and are the scraper's
 # job to capture at runtime. This file describes STRUCTURE (URLs, campuses, format), not content.
 #
 # Schema:

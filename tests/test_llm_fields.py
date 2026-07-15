@@ -17,7 +17,6 @@ class TestLoadLlmFieldResults:
         path.write_text(json.dumps({
             "giki": {
                 "deadline": {"value": "2026-08-15", "confidence": 0.9, "note": None},
-                "fee": None,
                 "programs": {"value": ["BS Computer Science"], "confidence": 0.85, "note": None},
                 "constituent_college": None,
             }
@@ -26,7 +25,6 @@ class TestLoadLlmFieldResults:
         results = load_llm_field_results(path)
 
         assert results["giki"]["deadline"] == Field(value="2026-08-15", confidence=0.9, note=None)
-        assert results["giki"]["fee"] == NULL_FIELD
         assert results["giki"]["programs"] == Field(value=["BS Computer Science"], confidence=0.85, note=None)
         assert results["giki"]["constituent_college"] == NULL_FIELD
 
@@ -37,7 +35,6 @@ class TestLoadLlmFieldResults:
         results = load_llm_field_results(path)
 
         assert results["giki"]["deadline"].value == "2026-08-15"
-        assert results["giki"]["fee"] == NULL_FIELD
         assert results["giki"]["programs"] == NULL_FIELD
         assert results["giki"]["constituent_college"] == NULL_FIELD
 
@@ -49,16 +46,16 @@ class TestLoadLlmFieldResults:
         path.write_text(json.dumps({
             "giki": {
                 "deadline": {"value": "2026-08-15", "confidence": None, "note": None},
-                "fee": {"value": "Rs. 2000", "confidence": 1.5, "note": None},  # out of [0,1] range
+                "programs": {"value": "not a list", "confidence": 1.5, "note": None},  # out of [0,1] range
             }
         }), encoding="utf-8")
 
         results = load_llm_field_results(path)
 
         assert results["giki"]["deadline"] == NULL_FIELD
-        assert results["giki"]["fee"] == NULL_FIELD
-        # other chunks/fields in the same file are unaffected
         assert results["giki"]["programs"] == NULL_FIELD
+        # other chunks/fields in the same file are unaffected
+        assert results["giki"]["constituent_college"] == NULL_FIELD
 
     def test_malformed_chunk_entry_is_skipped_not_fatal(self, tmp_path):
         path = tmp_path / "llm_fields.json"
@@ -86,7 +83,6 @@ class TestLoadLlmFieldResults:
         path.write_text(json.dumps({
             "giki": {
                 "deadline": "2026-08-15",  # bare string, not an object
-                "fee": 2000,  # bare number
                 "programs": ["BS"],  # bare list
                 "constituent_college": True,  # bare bool
             }
@@ -95,7 +91,6 @@ class TestLoadLlmFieldResults:
         results = load_llm_field_results(path)
 
         assert results["giki"]["deadline"] == NULL_FIELD
-        assert results["giki"]["fee"] == NULL_FIELD
         assert results["giki"]["programs"] == NULL_FIELD
         assert results["giki"]["constituent_college"] == NULL_FIELD
 
@@ -108,7 +103,7 @@ class TestRunBuildLlmFallback:
             "campus": None,
             "source_url": "https://admissions.giki.edu.pk",
             "fetched_at": "2026-07-09T00:00:00Z",
-            "html": "<p>Last date to apply: 10 August 2026. Application fee is Rs. 2000/-. BS programs offered.</p>",
+            "html": "<p>Last date to apply: 10 August 2026. BS programs offered.</p>",
             "pdfs": [],
         }
         record.update(overrides)
@@ -141,7 +136,7 @@ class TestBuildExtractedRecordsLlmPrecedence:
             "campus": None,
             "source_url": "https://admissions.giki.edu.pk",
             "fetched_at": "2026-07-09T00:00:00Z",
-            "html": "<p>Last date to apply: 10 August 2026. Application fee is Rs. 2000/-. BS programs offered.</p>",
+            "html": "<p>Last date to apply: 10 August 2026. BS programs offered.</p>",
             "pdfs": [],
         }
         record.update(overrides)
@@ -153,7 +148,6 @@ class TestBuildExtractedRecordsLlmPrecedence:
         llm_fields = {
             "giki": {
                 "deadline": Field(value="2026-09-01", confidence=0.95, note="llm-extracted"),
-                "fee": NULL_FIELD,
                 "programs": NULL_FIELD,
                 "constituent_college": NULL_FIELD,
             }
@@ -167,9 +161,6 @@ class TestBuildExtractedRecordsLlmPrecedence:
         # would have found in the same text (10 August 2026)
         assert extracted.deadline.value == "2026-09-01"
         assert extracted.deadline.note == "llm-extracted"
-        # LLM said fee is null -- regex is NOT consulted for this chunk,
-        # even though the regex extractor would find a fee in this text
-        assert extracted.fee == NULL_FIELD
 
     def test_regex_fallback_when_llm_fields_is_none(self):
         records = [self._scraped_record()]
@@ -180,7 +171,6 @@ class TestBuildExtractedRecordsLlmPrecedence:
         assert len(built) == 1
         _, extracted = built[0]
         assert extracted.deadline.value is not None
-        assert extracted.fee.value is not None
         assert extracted.programs.value == ["BS"]
 
     def test_regex_fallback_when_chunk_missing_from_llm_fields(self):
@@ -189,14 +179,13 @@ class TestBuildExtractedRecordsLlmPrecedence:
         # this chunk, not null everything.
         records = [self._scraped_record()]
         degree_levels = {"giki": DegreeLevel(value="Undergraduate")}
-        llm_fields = {"some_other_chunk": {"deadline": NULL_FIELD, "fee": NULL_FIELD, "programs": NULL_FIELD, "constituent_college": NULL_FIELD}}
+        llm_fields = {"some_other_chunk": {"deadline": NULL_FIELD, "programs": NULL_FIELD, "constituent_college": NULL_FIELD}}
 
         built, _, _ = build_extracted_records(records, degree_levels, llm_fields)
 
         assert len(built) == 1
         _, extracted = built[0]
         assert extracted.deadline.value is not None  # regex found it
-        assert extracted.fee.value is not None
 
     def test_default_llm_fields_none_matches_prior_regex_only_behavior(self):
         # build_extracted_records must still work when called with the old

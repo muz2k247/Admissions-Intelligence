@@ -23,11 +23,11 @@ Evaluate the code on these dimensions. Only flag issues that are real — do not
 4. **Security** — Injection risks, unsanitized input, hardcoded secrets, unsafe deserialization.
 5. **Error handling** — Missing error handling at system boundaries (external APIs, university websites, file I/O). Do NOT flag missing error handling for internal function calls.
 6. **Data integrity (project-specific)** — This pipeline's hard rule is: never infer, calculate, or guess a missing field. Flag any code that:
-   - Defaults, backfills, or infers a value (fee, deadline, degree level) when the source didn't state it — it must be left `null`.
+   - Defaults, backfills, or infers a value (deadline, degree level) when the source didn't state it — it must be left `null`.
    - Hardcodes an institution's URL, selector, or campus logic directly in a scraper function instead of reading it from the institution registry/config — this breaks the config-driven architecture the project depends on for maintaining 15+ sources solo. You have zero codebase context, so you won't always know where the registry lives — look for the pattern (a config file passed in, a lookup call) vs. a literal URL/selector string sitting in the function body. If you're not certain a hardcoded value is wrong, say so as a question rather than a confident violation.
    - Drops or silently discards the source URL for an extracted record — every record must retain it.
 
-   **Severity floor:** treat confirmed data-integrity violations as `high` by default, even if they look small — a silent inferred fee or a dropped source URL is the exact failure mode this project is built to prevent.
+   **Severity floor:** treat confirmed data-integrity violations as `high` by default, even if they look small — a silent inferred deadline or a dropped source URL is the exact failure mode this project is built to prevent.
 
 ## Output Format
 

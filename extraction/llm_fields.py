@@ -14,7 +14,7 @@ from pathlib import Path
 
 from extraction.schema import NULL_FIELD, Field
 
-_FIELD_NAMES = ("deadline", "fee", "programs", "constituent_college")
+_FIELD_NAMES = ("deadline", "programs", "constituent_college")
 
 
 def load_llm_field_results(path: Path | str) -> dict[str, dict[str, Field]]:

@@ -56,7 +56,6 @@ class TestBuildExtractedRecordsStats:
             "giki": {
                 "deadline": Field(value="15 Sep 2026", confidence=0.95),
                 "constituent_college": Field(),
-                "fee": Field(),
                 "programs": Field(value="BS Computer Science", confidence=0.9),
             }
         }
@@ -80,7 +79,6 @@ class TestBuildExtractedRecordsStats:
             "giki": {
                 "deadline": Field(value="15 Sep 2026", confidence=0.95),
                 "constituent_college": Field(),
-                "fee": Field(),
                 "programs": Field(),
             }
         }

@@ -2,7 +2,7 @@
 
 Human-readable companion to `config/institutions.yaml`, which is the source of truth all scraper/extraction code reads. If these two ever disagree, the YAML wins.
 
-**All 15 sources below were verified against their live sites during registry-building.** This file describes *structure* (URLs, campuses, format) — it deliberately does not record deadlines or fees, which change frequently and are the scraper's job to capture at runtime.
+**All 15 sources below were verified against their live sites during registry-building.** This file describes *structure* (URLs, campuses, format) — it deliberately does not record deadlines, which change frequently and are the scraper's job to capture at runtime.
 
 15 distinct admitting portals cover the 16 KIPS-target institutions (CMH / Army Medical College / Federal Medical & Dental College fold under NUMS, their actual admitting body).
 
@@ -57,4 +57,4 @@ Any institution entry may carry an optional `enabled` key (defaults to `true`). 
 
 ## What still can't be guaranteed
 
-Verification confirms URLs resolve and page structure/format as of the check. It does **not** freeze deadlines or fees — those change through the admission season and must be read live by the scraper, never hardcoded here. That separation is the real accuracy safeguard.
+Verification confirms URLs resolve and page structure/format as of the check. It does **not** freeze deadlines — those change through the admission season and must be read live by the scraper, never hardcoded here. That separation is the real accuracy safeguard.

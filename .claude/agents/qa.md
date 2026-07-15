@@ -23,7 +23,14 @@ You receive a code snippet (via file path or inline), generate tests for it, run
    - Python (default for this project): `python3 -m pytest <test_file> -v`
    - JavaScript/TypeScript (dashboard code): `npx vitest run <test_file>` or `node --test <test_file>`
    - Bash: run the script and check exit codes
-4. **Screenshot-verify dashboard/UI changes** — If the code under test is part of `dashboard/`, run `npm run screenshots` from the repo root. It builds the dashboard, serves it locally, and writes desktop + mobile captures to `.tmp/screenshots/`. Confirm the run passes (it asserts no horizontal overflow), then note in your report whether the captured views render correctly at both breakpoints. This runs only against the local preview server — never a live site. Skip for non-dashboard code and say why.
+4. **Screenshot-verify dashboard/UI changes** — Run `npm run screenshots` only when:
+   - A change has a meaningful risk of visual regression (new page, new component, layout changes, responsive behavior, navigation, CSS refactor, or other significant UI changes).
+   - The user explicitly requests visual verification.
+   - A visual bug or rendering issue is being investigated.
+
+   Do not run screenshot verification for minor UI changes (e.g. text changes, color updates, spacing tweaks, icons, or other low-risk styling changes) unless there is a specific reason.
+
+   Within a single task or set of user instructions, run screenshot verification at most once, after all relevant UI changes are complete. Do not repeat screenshot runs unless subsequent changes materially affect the UI or the user explicitly requests another verification.
 5. **Report results** — Write the report to the output file path.
 
 ## Test Guidelines

@@ -35,9 +35,6 @@ DEFAULT_CHUNKS_OUT = Path(".tmp") / "chunks" / "chunks.json"
 DEFAULT_EXTRACTED_OUT = Path(".tmp") / "extracted"
 DEFAULT_PUBLISH_DIR = Path("dashboard") / "frontend" / "public" / "data"
 
-# fee is excluded here even though the schema still carries it today: it's
-# already scoped for removal (fee was never a reliable signal) and a metric
-# that regresses the moment that removal ships would be a false alarm.
 _COVERAGE_FIELDS = ("deadline", "programs", "constituent_college")
 _COVERAGE_DROP_THRESHOLD = 0.5  # refuse to publish if coverage falls below this fraction of the last published run
 

@@ -1,7 +1,7 @@
 """Stage 3b: Field extraction via Gemini API.
 
 Reads chunks from Stage 2 and institution config, sends them to Gemini
-for structured field extraction (deadline, fee, programs,
+for structured field extraction (deadline, programs,
 constituent_college), and writes llm_fields.json that Stage 4 expects.
 
 This replaces the subagent-based invocation described in
@@ -46,10 +46,6 @@ aid deadline, or entry-test date. If multiple labeled deadlines exist for
 different tracks, return a list of {{"label": ..., "date": ...}} pairs.
 Otherwise null.
 
-**fee** — the application/admission processing fee explicitly stated
-(e.g. "Application Fee: Rs. 3,000/-"). NOT a semester fee, hostel fee, or
-entry-test registration fee. Otherwise null.
-
 **programs** — the list of degree programs mentioned for undergraduate
 admission (e.g. ["BS Computer Science", "BE Electrical Engineering"]).
 Only programs the text actually names. Otherwise null.
@@ -69,7 +65,6 @@ keyed by chunk id:
 {{
   "<chunk_id>": {{
     "deadline": {{"value": "...", "confidence": 0.9, "note": null}} | null,
-    "fee": {{"value": "...", "confidence": 0.9, "note": null}} | null,
     "programs": {{"value": [...], "confidence": 0.85, "note": null}} | null,
     "constituent_college": {{"value": "...", "confidence": 0.9, "note": null}} | null
   }}

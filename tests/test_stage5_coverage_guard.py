@@ -39,7 +39,6 @@ def _record(chunk_id, institution_id="giki", deadline=None, programs=None, const
         "degree_level": {"value": "Undergraduate", "reason": None},
         "constituent_college": _field(constituent_college),
         "deadline": _field(deadline),
-        "fee": {"value": None, "confidence": None, "note": None},
         "programs": _field(programs),
     }
 

@@ -3,7 +3,6 @@ import { OVERRIDABLE_FIELDS, saveFieldOverride } from "../api/overrides";
 
 const FIELD_LABELS = {
   deadline: "Deadline",
-  fee: "Fee",
   programs: "Programs",
   constituent_college: "Constituent college",
 };

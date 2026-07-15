@@ -25,7 +25,7 @@ from pathlib import Path
 
 from extraction.chunker import chunk_scraped_record
 from extraction.classify import load_classifier_results
-from extraction.fields import extract_constituent_college, extract_deadline, extract_fee, extract_programs
+from extraction.fields import extract_constituent_college, extract_deadline, extract_programs
 from extraction.llm_fields import load_llm_field_results
 from extraction.schema import NULL_FIELD, DegreeLevel, ExtractedRecord
 
@@ -129,14 +129,12 @@ def build_extracted_records(
             if chunk_llm_fields is not None:
                 constituent_college = chunk_llm_fields.get("constituent_college", NULL_FIELD)
                 deadline = chunk_llm_fields.get("deadline", NULL_FIELD)
-                fee = chunk_llm_fields.get("fee", NULL_FIELD)
                 programs = chunk_llm_fields.get("programs", NULL_FIELD)
                 if stats is not None:
                     stats["llm_chunks"] += 1
             else:
                 constituent_college = extract_constituent_college(chunk.raw_text)
                 deadline = extract_deadline(chunk.raw_text)
-                fee = extract_fee(chunk.raw_text)
                 programs = extract_programs(chunk.raw_text)
                 if stats is not None:
                     stats["regex_chunks"] += 1
@@ -150,7 +148,6 @@ def build_extracted_records(
                 degree_level=degree_level,
                 constituent_college=constituent_college,
                 deadline=deadline,
-                fee=fee,
                 programs=programs,
             )
             built.append((chunk.id, extracted))

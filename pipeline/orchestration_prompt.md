@@ -69,7 +69,7 @@ python -m pipeline.run_full stage1_2 --out-scraped .tmp/scraped --out-chunks .tm
 
 ### Step 2: Invoke Content-Classifier and Field-Extractor Agents
 
-Spawn both agents against the same `.tmp/chunks/chunks.json` produced in Step 1 — content-classifier for Undergraduate/Postgraduate/Ambiguous routing, field-extractor for deadline/fee/programs/constituent_college. They're independent of each other (neither reads the other's output) and can be run concurrently.
+Spawn both agents against the same `.tmp/chunks/chunks.json` produced in Step 1 — content-classifier for Undergraduate/Postgraduate/Ambiguous routing, field-extractor for deadline/programs/constituent_college. They're independent of each other (neither reads the other's output) and can be run concurrently.
 
 **Agent invocation (content-classifier):**
 
@@ -95,12 +95,11 @@ Use the Agent tool (not Bash) to invoke field-extractor:
 ```
 Read the chunks file at .tmp/chunks/chunks.json
 Read config/institutions.yaml for each chunk's institution's constituent_colleges (only uhs/nums have it).
-Extract deadline, fee, programs, and constituent_college for each chunk under a strict null-if-unstated contract.
+Extract deadline, programs, and constituent_college for each chunk under a strict null-if-unstated contract.
 Write output to .tmp/chunks/llm_fields.json in the exact format:
 {
   "<chunk_id>": {
     "deadline": {"value": ..., "confidence": <0.0-1.0>, "note": ...} | null,
-    "fee": {"value": ..., "confidence": <0.0-1.0>, "note": ...} | null,
     "programs": {"value": ..., "confidence": <0.0-1.0>, "note": ...} | null,
     "constituent_college": {"value": ..., "confidence": <0.0-1.0>, "note": ...} | null
   }
@@ -127,7 +126,7 @@ Always pass `--llm-extracted` with this exact path, whether or not field-extract
 
 **Expected outputs:**
 - `.tmp/extracted/`: One JSON file per chunk ID (e.g., `chunk_001.json`, `chunk_002.json`, etc.)
-- Each file is a valid ExtractedRecord with institution_id, campus, source_url, chunk_id, degree_level, deadline, fee, programs, etc.
+- Each file is a valid ExtractedRecord with institution_id, campus, source_url, chunk_id, degree_level, deadline, programs, etc.
 
 **Error handling:**
 - If classified.json is missing: Script exits 1. **STOP** and report "Classifier output not found."
@@ -156,7 +155,7 @@ The `git config` lines are local to this checkout only (no `--global`) and safe 
 
 **Expected behavior:**
 - `stage5` reads `.tmp/extracted/*.json` fully into memory first; only once that succeeds — and only if at least one record was found — does it write `dashboard/frontend/public/data/records.json` and `institutions.json`, both as one atomic unit (temp files first, then replaced together). A read failure or an empty/wrong `--extracted` path never touches (or blanks out) the previously-published live data.
-- If neither file actually changed content since the last run (no new deadlines/fees/programs, nothing scraped differently), `git commit` will report nothing to commit — that's a normal outcome, not a failure. Skip the push in that case rather than erroring.
+- If neither file actually changed content since the last run (no new deadlines/programs, nothing scraped differently), `git commit` will report nothing to commit — that's a normal outcome, not a failure. Skip the push in that case rather than erroring.
 - `git push` lands the new data on `main` under `dashboard/frontend/public/data/`, which triggers `.github/workflows/deploy.yml` to build and deploy. This routine's job is done at that point — it does not wait for or verify the GitHub Actions run.
 
 **Error handling:**

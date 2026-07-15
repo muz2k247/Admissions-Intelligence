@@ -76,22 +76,7 @@ def _normalize_date(raw: str) -> str:
     return s.lower()
 
 
-_FEE_KEYWORDS = ["application fee", "processing fee", "admission fee", "fee"]
 
-# Same primary/secondary split as deadlines: bare "fee" matches anything fee-
-# shaped on the page (entry-test registration fee, semester fee, hostel
-# fee, ...), which is not a second candidate for the application fee, just
-# a different fee entirely. Primary keywords name the application fee
-# specifically.
-_FEE_KEYWORDS_PRIMARY = [
-    "application fee", "admission fee", "processing fee",
-    "application processing fee",
-]
-
-_FEE_PATTERN = re.compile(
-    r"\b(Rs\.?|PKR)\s?[\d,]+(/-)?",
-    re.IGNORECASE,
-)
 
 _PROGRAM_TOKENS = [
     "BS", "BE", "B.Sc", "BSc", "BBA", "MBBS", "BDS", "ADP",
@@ -110,8 +95,8 @@ def _keyword_anchored_matches(text: str, keywords: list[str], value_pattern: re.
     candidates instead of just nulling on conflict.
 
     Keywords are tried longest-first and a claimed span is not re-matched by
-    a shorter keyword contained within it (e.g. "application fee" already
-    anchors a match — the "fee" inside it shouldn't count as a second,
+    a shorter keyword contained within it (e.g. "admission deadline" already
+    anchors a match — the "deadline" inside it shouldn't count as a second,
     independent signal and inflate confidence)."""
     lower = text.lower()
     claimed: list[tuple[int, int]] = []
@@ -233,20 +218,6 @@ def extract_deadline(text: str) -> Field:
     return Field(value=None, confidence=None, note="conflicting deadline candidates found — left null rather than guessed")
 
 
-def extract_fee(text: str) -> Field:
-    if not text:
-        return NULL_FIELD
-    matches = _keyword_anchored_matches(text, _FEE_KEYWORDS_PRIMARY, _FEE_PATTERN)
-    if not matches:
-        matches = _keyword_anchored_matches(text, _FEE_KEYWORDS, _FEE_PATTERN)
-    if not matches:
-        return NULL_FIELD
-    values = [v for v, _ in matches]
-    distinct = set(values)
-    if len(distinct) == 1:
-        confidence = 0.9 if len(values) > 1 else 0.8
-        return Field(value=values[0], confidence=confidence)
-    return Field(value=None, confidence=None, note="conflicting fee candidates found — left null rather than guessed")
 
 
 def extract_constituent_college(text: str) -> Field:

@@ -43,7 +43,6 @@ def _write_extracted_record(extracted_dir, filename, chunk_id="giki", **override
         "degree_level": {"value": "Undergraduate", "reason": None},
         "constituent_college": {"value": None, "confidence": None, "note": None},
         "deadline": {"value": "10 Aug 2026", "confidence": 0.85, "note": None},
-        "fee": {"value": None, "confidence": None, "note": None},
         "programs": {"value": None, "confidence": None, "note": None},
     }
     record.update(overrides)
@@ -101,11 +100,11 @@ class TestStage5Publish:
 
         extracted_dir = tmp_path / "extracted"
         publish_dir = tmp_path / "publish"
-        # pipeline extracted a null fee for giki; a curator corrected it.
+        # pipeline extracted a null programs for giki; a curator corrected it.
         _write_extracted_record(extracted_dir, "giki.json", chunk_id="giki")
         monkeypatch.setattr(
             run_full, "fetch_overrides",
-            lambda *a, **k: {"giki": {"fee": Field(value="Rs. 3000", confidence=1.0, note="human-verified")}},
+            lambda *a, **k: {"giki": {"programs": Field(value=["BS CS"], confidence=1.0, note="human-verified")}},
         )
 
         rc = run_full.stage_5_publish(extracted_dir, publish_dir)
@@ -113,8 +112,8 @@ class TestStage5Publish:
         assert rc == 0
         published = json.loads((publish_dir / "records.json").read_text(encoding="utf-8"))
         giki = next(r for r in published if r["chunk_id"] == "giki")
-        # curator's fee correction is baked into the static record...
-        assert giki["fee"] == {"value": "Rs. 3000", "confidence": 1.0, "note": "human-verified"}
+        # curator's programs correction is baked into the static record...
+        assert giki["programs"] == {"value": ["BS CS"], "confidence": 1.0, "note": "human-verified"}
         # ...while the pipeline-extracted deadline (not overridden) is untouched
         assert giki["deadline"] == {"value": "10 Aug 2026", "confidence": 0.85, "note": None}
         assert giki["source_url"] == "https://giki.edu.pk/admissions/admissions-undergraduates/"
@@ -127,9 +126,9 @@ class TestStage5Publish:
         run_full.stage_5_publish(extracted_dir, publish_dir)
 
         published = json.loads((publish_dir / "records.json").read_text(encoding="utf-8"))
-        fee = published[0]["fee"]
-        assert fee["value"] is None
-        assert fee["confidence"] is None
+        programs = published[0]["programs"]
+        assert programs["value"] is None
+        assert programs["confidence"] is None
 
     def test_zero_extracted_records_refuses_to_publish(self, tmp_path):
         # A zero-record extracted_dir is refused, not published as an empty

@@ -64,7 +64,6 @@ export default function RecordCard({ record, institutionName, isAdmittingBody })
 
       <div className="record-card__fields">
         <FieldRow label="Deadline" field={record.deadline} />
-        <FieldRow label="Fee" field={record.fee} />
         <ProgramsFieldRow field={record.programs} />
         {isAdmittingBody && <FieldRow label="Constituent college" field={record.constituent_college} />}
       </div>

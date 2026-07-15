@@ -101,7 +101,6 @@ def _record(chunk_id="giki", **overrides):
         degree_level=DegreeLevel(value="Undergraduate"),
         constituent_college=NULL_FIELD,
         deadline=Field(value="10 Aug 2026", confidence=0.85),
-        fee=NULL_FIELD,
         programs=NULL_FIELD,
     )
     base.update(overrides)
@@ -155,7 +154,7 @@ class TestDecodeDocument:
 
         assert chunk_id == "giki"
         assert fields["deadline"] == Field(value="2026-08-15", confidence=1.0, note="human-verified")
-        assert "fee" not in fields  # not present in the doc
+        assert "programs" not in fields  # not present in the doc
 
     def test_ignores_audit_metadata_keys(self):
         # A real curator edit also stores original/verified_by/verified_at
@@ -214,16 +213,16 @@ class TestDecodeDocument:
         doc = {
             "name": "projects/p/databases/(default)/documents/overrides/giki",
             "fields": {"fields": {"mapValue": {"fields": {
-                "fee": {"mapValue": {"fields": {
-                    "value": {"stringValue": "Rs. 3000"},
+                "deadline": {"mapValue": {"fields": {
+                    "value": {"stringValue": "2026-08-15"},
                     "confidence": {"integerValue": "1"},
                     "note": {"stringValue": "human-verified"},
                 }}},
             }}}},
         }
         _, fields = _decode_document(doc)
-        assert fields["fee"].confidence == 1.0
-        assert isinstance(fields["fee"].confidence, float)
+        assert fields["deadline"].confidence == 1.0
+        assert isinstance(fields["deadline"].confidence, float)
 
 
 # ---------------------------------------------------------------------------
@@ -232,17 +231,17 @@ class TestDecodeDocument:
 
 class TestFetchOverrides:
     def test_fetches_and_decodes_single_page(self):
-        payload = {"documents": [_fs_document("giki", {"fee": ("Rs. 3000", 1.0, "human-verified")})]}
+        payload = {"documents": [_fs_document("giki", {"deadline": ("2026-08-15", 1.0, "human-verified")})]}
         session = FakeSession(FakeResponse(payload))
 
         result = fetch_overrides(project_id="test-proj", session=session)
 
         assert set(result) == {"giki"}
-        assert result["giki"]["fee"] == Field(value="Rs. 3000", confidence=1.0, note="human-verified")
+        assert result["giki"]["deadline"] == Field(value="2026-08-15", confidence=1.0, note="human-verified")
 
     def test_follows_pagination(self):
-        page1 = {"documents": [_fs_document("giki", {"fee": ("Rs. 3000", 1.0, None)})], "nextPageToken": "tok"}
-        page2 = {"documents": [_fs_document("uet", {"fee": ("Rs. 2000", 1.0, None)})]}
+        page1 = {"documents": [_fs_document("giki", {"deadline": ("2026-08-15", 1.0, None)})], "nextPageToken": "tok"}
+        page2 = {"documents": [_fs_document("uet", {"deadline": ("2026-09-01", 1.0, None)})]}
         session = FakeSession([FakeResponse(page1), FakeResponse(page2)])
 
         result = fetch_overrides(project_id="test-proj", session=session)
@@ -290,7 +289,7 @@ class TestFetchOverrides:
         assert fetch_overrides(project_id="test-proj", session=session) == {}
 
     def test_non_dict_document_entry_is_skipped(self):
-        payload = {"documents": ["garbage", _fs_document("giki", {"fee": ("Rs. 3000", 1.0, None)})]}
+        payload = {"documents": ["garbage", _fs_document("giki", {"deadline": ("2026-08-15", 1.0, None)})]}
         session = FakeSession(FakeResponse(payload))
         result = fetch_overrides(project_id="test-proj", session=session)
         assert set(result) == {"giki"}
@@ -299,18 +298,18 @@ class TestFetchOverrides:
         # A single malformed document (non-string name) must skip only itself,
         # not blow away every valid override already accumulated in the fetch.
         bad_doc = {"name": 999, "fields": {}}
-        good_doc = _fs_document("giki", {"fee": ("Rs. 3000", 1.0, None)})
+        good_doc = _fs_document("giki", {"deadline": ("2026-08-15", 1.0, None)})
         session = FakeSession(FakeResponse({"documents": [good_doc, bad_doc]}))
 
         result = fetch_overrides(project_id="test-proj", session=session)
 
         assert set(result) == {"giki"}
-        assert result["giki"]["fee"].value == "Rs. 3000"
+        assert result["giki"]["deadline"].value == "2026-08-15"
 
     def test_pagination_cap_prevents_infinite_loop(self):
         # A server that always echoes a non-empty nextPageToken must not hang
         # the publish -- the loop is capped and returns what it gathered.
-        payload = {"documents": [_fs_document("giki", {"fee": ("Rs. 1", 1.0, None)})], "nextPageToken": "always-more"}
+        payload = {"documents": [_fs_document("giki", {"deadline": ("2026-08-15", 1.0, None)})], "nextPageToken": "always-more"}
         # Same response every call, forever -- FakeSession clamps to the last
         # (and only) response, so every page looks like "there's another page".
         session = FakeSession(FakeResponse(payload))
@@ -347,16 +346,16 @@ class TestFetchOverrides:
 
 class TestMergeOverrides:
     def test_applies_overridden_field(self):
-        record = _record(chunk_id="giki", fee=NULL_FIELD)
-        overrides = {"giki": {"fee": Field(value="Rs. 3000", confidence=1.0, note="human-verified")}}
+        record = _record(chunk_id="giki", deadline=NULL_FIELD)
+        overrides = {"giki": {"deadline": Field(value="2026-08-15", confidence=1.0, note="human-verified")}}
 
         merged = merge_overrides(record, overrides)
 
-        assert merged.fee == Field(value="Rs. 3000", confidence=1.0, note="human-verified")
+        assert merged.deadline == Field(value="2026-08-15", confidence=1.0, note="human-verified")
 
     def test_preserves_untouched_fields_and_source_url(self):
         record = _record(chunk_id="giki")
-        overrides = {"giki": {"fee": Field(value="Rs. 3000", confidence=1.0, note="human-verified")}}
+        overrides = {"giki": {"programs": Field(value=["BS CS"], confidence=1.0, note="human-verified")}}
 
         merged = merge_overrides(record, overrides)
 
@@ -367,7 +366,7 @@ class TestMergeOverrides:
 
     def test_no_override_entry_returns_record_unchanged(self):
         record = _record(chunk_id="giki")
-        merged = merge_overrides(record, {"other_chunk": {"fee": Field(value="x", confidence=1.0)}})
+        merged = merge_overrides(record, {"other_chunk": {"deadline": Field(value="x", confidence=1.0)}})
         assert merged is record
 
     def test_empty_overrides_returns_record_unchanged(self):
@@ -375,21 +374,21 @@ class TestMergeOverrides:
         assert merge_overrides(record, {}) is record
 
     def test_does_not_mutate_input_record(self):
-        record = _record(chunk_id="giki", fee=NULL_FIELD)
-        overrides = {"giki": {"fee": Field(value="Rs. 3000", confidence=1.0, note="human-verified")}}
+        record = _record(chunk_id="giki", deadline=NULL_FIELD)
+        overrides = {"giki": {"deadline": Field(value="2026-08-15", confidence=1.0, note="human-verified")}}
 
         merge_overrides(record, overrides)
 
         # original record object is untouched (dataclasses.replace returns new)
-        assert record.fee == NULL_FIELD
+        assert record.deadline == NULL_FIELD
 
     def test_ignores_non_overridable_field_names(self):
-        # A stray key that isn't one of the four overridable Field attributes
+        # A stray key that isn't one of the three overridable Field attributes
         # must never reach dataclasses.replace (which would raise).
         record = _record(chunk_id="giki")
-        overrides = {"giki": {"degree_level": Field(value="x", confidence=1.0), "fee": Field(value="Rs. 1", confidence=1.0)}}
+        overrides = {"giki": {"degree_level": Field(value="x", confidence=1.0), "programs": Field(value=["BS CS"], confidence=1.0)}}
 
         merged = merge_overrides(record, overrides)
 
-        assert merged.fee.value == "Rs. 1"
+        assert merged.programs.value == ["BS CS"]
         assert merged.degree_level == record.degree_level  # untouched

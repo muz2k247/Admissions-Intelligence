@@ -93,7 +93,6 @@ class ExtractedRecord:
     degree_level: DegreeLevel
     constituent_college: Field
     deadline: Field
-    fee: Field
     programs: Field
 
     def to_dict(self) -> dict:
@@ -106,7 +105,6 @@ class ExtractedRecord:
             "degree_level": self.degree_level.to_dict(),
             "constituent_college": self.constituent_college.to_dict(),
             "deadline": self.deadline.to_dict(),
-            "fee": self.fee.to_dict(),
             "programs": self.programs.to_dict(),
         }
 
@@ -121,6 +119,5 @@ class ExtractedRecord:
             degree_level=DegreeLevel.from_dict(d.get("degree_level")),
             constituent_college=Field.from_dict(d.get("constituent_college")),
             deadline=Field.from_dict(d.get("deadline")),
-            fee=Field.from_dict(d.get("fee")),
             programs=Field.from_dict(d.get("programs")),
         )

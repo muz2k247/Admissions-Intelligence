@@ -4,7 +4,7 @@
 A solo-built system that monitors undergraduate admissions across 16 KIPS-target Pakistani institutions (17 sources — Air University alone splits into two campus portals — see `docs/institution_registry.md`), extracts structured data, and presents it. Cost minimization is a standing constraint: prefer direct APIs, self-hosted scraping, and lighter models over paid SaaS.
 
 ## Current phase scope — read this before building anything
-**In scope right now:** Phase M (see Commit conventions) — making the existing scrape → extract → publish pipeline honest: loud failure instead of silent `continue-on-error`, and a coverage-regression guard so a bad extraction run can't overwrite good published data. Build only this phase; don't jump ahead to N–S.
+**In scope right now:** Phase O (see Commit conventions) — completed: removed fee collection end-to-end. The data model is now University + open UG programmes + deadline only. Build only the current phase; don't jump ahead to P–S.
 
 **A roadmap (Phases M–S) has been reviewed and approved — see "Commit conventions" below for the list.** It is not unknown, but it also isn't a license to chain through it: **pause between phases** per the standing rule below, and don't build work belonging to a later lettered phase while inside an earlier one. If a design choice today would only make sense in service of a phase that hasn't started yet, stop and confirm before proceeding.
 
@@ -51,8 +51,8 @@ Every institution is one or more **sources**; every source has a `campus` field 
 `constituent_colleges` on a source is the set the extractor is allowed to match a record against — the extractor determines which specific college a given record belongs to (never assumed from the source URL alone), and if it can't tell, that field is `null` like any other uncertain field under the hard rules below.
 
 ## Hard rules (non-negotiable)
-1. **Never infer, calculate, or guess a missing field.** If a fee, deadline, or other detail isn't explicitly stated on the source page, the field is `null`. No defaults, no backfilling.
-2. **Field-level confidence, not record-level.** Every extracted field carries its own confidence score. A strong deadline field doesn't excuse a weak fee field.
+1. **Never infer, calculate, or guess a missing field.** If a deadline or other detail isn't explicitly stated on the source page, the field is `null`. No defaults, no backfilling.
+2. **Field-level confidence, not record-level.** Every extracted field carries its own confidence score. A strong deadline field doesn't excuse a weak programs field.
 3. **UG/PG filtering happens at content level, not URL level.** Many institutions mix undergraduate and postgraduate announcements on the same page. Use the `content-classifier` subagent (see below) — never assume a page's URL tells you the degree level. **The project is undergrad-only in scope** (as of 2026-07): Postgraduate-classified chunks are excluded from extraction output entirely, not merely hidden by a UI filter — see `extraction/run.py`'s `build_extracted_records`. Ambiguous is not the same failure type as Postgraduate and stays in the output, reviewable via its reason code; the dashboard just doesn't blend it into the default view (it's an explicit opt-in filter, defaulting to Undergraduate-only).
 4. **Every record keeps its source URL.** No exceptions, even for high-confidence extractions.
 5. **A correct answer late beats a wrong answer immediately.** When in doubt, leave it null or route to `Ambiguous` rather than force a value.
@@ -109,7 +109,7 @@ Defined in `.claude/agents/`. Follow the design/build loop for any non-trivial c
 4. Parent agent applies fixes from both reports.
 5. Ship only after both pass.
 
-Use `research` for institution site investigation (prefer official `.edu.pk` domains over aggregators; timestamp anything deadline/fee-related). Use `content-classifier` for UG/PG routing on scraped chunks — `Ambiguous` results carry a reason code; don't treat all `Ambiguous` items as the same failure type.
+Use `research` for institution site investigation (prefer official `.edu.pk` domains over aggregators; timestamp anything deadline-related). Use `content-classifier` for UG/PG routing on scraped chunks — `Ambiguous` results carry a reason code; don't treat all `Ambiguous` items as the same failure type.
 
 **Thought → Action → Review**: for any change touching the hard rules above (null-handling, confidence scoring, UG/PG routing, source URL retention), state what you're checking for before you act, then verify the result against that stated check before moving on — don't just run the subagent loop and assume PASS means done.
 
@@ -152,7 +152,7 @@ Commit after each chunk of work is functionally complete and passes the code-rev
 **Approved next roadmap (2026-07-15), each phase paused-and-confirmed before the next starts:**
 - Phase M *(current)*: make pipeline failure loud — replace blanket `continue-on-error` on Gemini extraction with a visible health outcome; add a coverage-regression guard to `stage_5_publish` so a bad run can't overwrite good published data; label regex-fallback fields as low-confidence.
 - Phase N: realistic browser user-agent on both the plain and headless fetch paths; re-triage blocked sources into WAF-block / JS-gated / login-gated by evidence, not blanket `render: js`.
-- Phase O: remove fee collection end-to-end (schema, extraction, overrides, admin CMS, public dashboard, tests, docs) — scope is now University + open UG programmes + deadline.
+- Phase O *(done)*: removed fee collection end-to-end (schema, extraction, overrides, admin CMS, public dashboard, tests, docs) — scope is now University + open UG programmes + deadline.
 - Phase P: validation & normalization layer — parse/normalize deadlines, reject implausible values to null, and introduce "admissions open" as its own classified signal (not derived arithmetically from the deadline).
 - Phase Q: Needs-Review queue — high-confidence open programmes auto-publish; low-confidence ones queue for admin approve/edit/reject, with approvals content-keyed (chunk_id + value hash) so a changed re-scrape re-queues instead of publishing a stale approval.
 - Phase R: admin-managed institutions — Firestore `institutions` collection (with tombstones for deletes) merged over the `config/institutions.yaml` seed at publish time; CMS add-by-name flow (Gemini + web search suggests candidate `.edu.pk` URLs, admin confirms, manual URL entry also available) — never auto-enable an unconfirmed URL.
