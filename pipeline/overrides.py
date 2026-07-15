@@ -144,9 +144,11 @@ def fetch_overrides(
     project_id: str | None = None,
     session: requests.Session | None = None,
     timeout: int = _DEFAULT_TIMEOUT,
-) -> dict[str, dict[str, Field]]:
+) -> dict[str, dict[str, "_OverrideEntry"]]:
     """Fetch the `overrides` collection via an unauthenticated Firestore REST
-    GET, returning {chunk_id: {field_name: Field}}.
+    GET, returning {chunk_id: {field_name: _OverrideEntry}}. Access the
+    Field via entry.field (NOT entry.value/entry.confidence directly --
+    _OverrideEntry is not a Field).
 
     Returns {} on ANY failure (no project id, network error, non-200,
     malformed JSON) -- a Firestore problem must never block or blank the

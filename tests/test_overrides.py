@@ -583,6 +583,33 @@ class TestMergeOverridesStaleDetection:
 
         assert merged.deadline == Field(value="fresh value", confidence=0.9)
 
+    def test_multi_deadline_list_of_dict_original_matching_applies(self):
+        # deadline can be list[{"label", "date"}] for genuinely multiple
+        # distinct deadlines (extraction/schema.py) -- must compare cleanly.
+        multi = [{"label": "Engineering", "date": "2026-08-15"}, {"label": "CS", "date": "2026-08-20"}]
+        record = _record(chunk_id="giki", deadline=Field(value=multi, confidence=0.9))
+        overrides = {"giki": {"deadline": _entry("2026-08-25", original=multi)}}
+
+        merged = merge_overrides(record, overrides)
+
+        assert merged.deadline == Field(value="2026-08-25", confidence=1.0, note="human-verified")
+
+    def test_multi_deadline_list_of_dict_reordered_is_treated_as_stale(self):
+        # Known, accepted limitation: comparison is order-sensitive, so a
+        # re-scrape reproducing the same entries in a different order reads
+        # as "stale" even though the content is unchanged. This falls back
+        # safely to the fresh extracted value (never a crash or wrong data),
+        # just an avoidable false-alarm re-queue -- documented here so a
+        # future change to relax this is a deliberate choice, not a surprise.
+        multi = [{"label": "Engineering", "date": "2026-08-15"}, {"label": "CS", "date": "2026-08-20"}]
+        reordered = list(reversed(multi))
+        record = _record(chunk_id="giki", deadline=Field(value=reordered, confidence=0.9))
+        overrides = {"giki": {"deadline": _entry("2026-08-25", original=multi)}}
+
+        merged = merge_overrides(record, overrides)
+
+        assert merged.deadline == Field(value=reordered, confidence=0.9)  # override dropped, fresh value used
+
 
 # ---------------------------------------------------------------------------
 # admissions_open coverage in _decode_document

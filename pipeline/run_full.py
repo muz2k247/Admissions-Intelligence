@@ -382,8 +382,13 @@ def stage_5_publish(extracted_dir: Path, publish_dir: Path, allow_coverage_drop:
     # degrades to publishing the pipeline-extracted values -- never fatal.
     overrides = fetch_overrides()
     if overrides:
-        records = [merge_overrides(r, overrides) for r in records]
-        overridden = sum(1 for r in records if r.chunk_id in overrides)
+        merged_records = [merge_overrides(r, overrides) for r in records]
+        # Count records that actually changed, not merely records whose
+        # chunk_id had an override entry -- merge_overrides can drop every
+        # field in that entry as stale (Phase Q), in which case the record
+        # is unchanged and shouldn't be counted as "applied".
+        overridden = sum(1 for before, after in zip(records, merged_records) if before != after)
+        records = merged_records
         print(f"Applied curator overrides to {overridden} of {len(records)} record(s).")
 
     new_coverage = _field_coverage(records)

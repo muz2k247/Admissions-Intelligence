@@ -119,6 +119,38 @@ class TestStage5Publish:
         assert giki["deadline"] == {"value": "10 Aug 2026", "confidence": 0.85, "note": None}
         assert giki["source_url"] == "https://giki.edu.pk/admissions/admissions-undergraduates/"
 
+    def test_all_stale_overrides_are_not_counted_as_applied(self, tmp_path, monkeypatch, capsys):
+        # A chunk whose only override entry is stale (source changed since
+        # the curator's correction) must publish the fresh extracted value
+        # AND not be counted in the "Applied curator overrides to N of M"
+        # summary line -- nothing was actually applied.
+        from extraction.schema import Field
+        from pipeline.overrides import _OverrideEntry
+
+        extracted_dir = tmp_path / "extracted"
+        publish_dir = tmp_path / "publish"
+        _write_extracted_record(extracted_dir, "giki.json", chunk_id="giki")
+        monkeypatch.setattr(
+            run_full, "fetch_overrides",
+            lambda *a, **k: {
+                "giki": {
+                    "programs": _OverrideEntry(
+                        field=Field(value=["BS CS"], confidence=1.0, note="human-verified"),
+                        original="some value that was never actually extracted",
+                    )
+                }
+            },
+        )
+
+        rc = run_full.stage_5_publish(extracted_dir, publish_dir)
+
+        assert rc == 0
+        published = json.loads((publish_dir / "records.json").read_text(encoding="utf-8"))
+        giki = next(r for r in published if r["chunk_id"] == "giki")
+        # override dropped as stale -- programs stays whatever was extracted (null)
+        assert giki["programs"] == {"value": None, "confidence": None, "note": None}
+        assert "Applied curator overrides to 0 of" in capsys.readouterr().out
+
     def test_null_field_never_carries_a_default_or_confidence(self, tmp_path):
         extracted_dir = tmp_path / "extracted"
         publish_dir = tmp_path / "publish"

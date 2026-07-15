@@ -1,9 +1,11 @@
 """Shared unauthenticated-Firestore-REST-read helpers.
 
-Three modules now read Firestore collections/documents at publish time with
-no credential (`pipeline/overrides.py`, and Phase Q's `pipeline/review.py`):
-project-id loading, the typed-JSON value decoder, and the paginated-GET
-mechanics are identical across all of them, so they live here once.
+`pipeline/overrides.py` and Phase Q's `pipeline/review.py` both read
+Firestore collections/documents at publish time with no credential, across
+three read call sites (overrides, review_decisions, settings/review_gate):
+project-id loading, the typed-JSON value decoder, and the paginated-GET/
+single-doc-GET mechanics are identical across all of them, so they live
+here once.
 
 Every function here either returns data or raises -- it does NOT decide how
 a caller should degrade on failure (return {}, use a default, etc.). That
