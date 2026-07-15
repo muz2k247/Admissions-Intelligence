@@ -25,7 +25,7 @@ from pathlib import Path
 
 from extraction.chunker import chunk_scraped_record
 from extraction.classify import load_classifier_results
-from extraction.fields import extract_constituent_college, extract_deadline, extract_programs
+from extraction.fields import extract_admissions_open, extract_constituent_college, extract_deadline, extract_programs
 from extraction.llm_fields import load_llm_field_results
 from extraction.normalize import normalize_date_string, validate_deadline_value
 from extraction.schema import NULL_FIELD, DegreeLevel, Field, ExtractedRecord
@@ -159,12 +159,14 @@ def build_extracted_records(
                 constituent_college = chunk_llm_fields.get("constituent_college", NULL_FIELD)
                 deadline = _validate_llm_deadline_field(chunk_llm_fields.get("deadline", NULL_FIELD))
                 programs = chunk_llm_fields.get("programs", NULL_FIELD)
+                admissions_open = chunk_llm_fields.get("admissions_open", NULL_FIELD)
                 if stats is not None:
                     stats["llm_chunks"] += 1
             else:
                 constituent_college = extract_constituent_college(chunk.raw_text)
                 deadline = extract_deadline(chunk.raw_text)
                 programs = extract_programs(chunk.raw_text)
+                admissions_open = extract_admissions_open(chunk.raw_text)
                 if stats is not None:
                     stats["regex_chunks"] += 1
 
@@ -178,6 +180,7 @@ def build_extracted_records(
                 constituent_college=constituent_college,
                 deadline=deadline,
                 programs=programs,
+                admissions_open=admissions_open,
             )
             built.append((chunk.id, extracted))
     return built, skipped, excluded_postgraduate

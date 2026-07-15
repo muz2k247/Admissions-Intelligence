@@ -198,3 +198,88 @@ class TestBuildExtractedRecordsLlmPrecedence:
         assert len(built) == 1
         _, extracted = built[0]
         assert extracted.deadline.value is not None
+
+
+# ---------------------------------------------------------------------------
+# admissions_open (Phase P chunk 2)
+# ---------------------------------------------------------------------------
+
+class TestLoadLlmFieldResultsAdmissionsOpen:
+    def test_parses_admissions_open_entry(self, tmp_path):
+        path = tmp_path / "llm_fields.json"
+        path.write_text(json.dumps({
+            "giki": {
+                "deadline": {"value": "2026-08-15", "confidence": 0.9, "note": None},
+                "programs": None,
+                "constituent_college": None,
+                "admissions_open": {"value": "Open", "confidence": 0.8, "note": None},
+            }
+        }), encoding="utf-8")
+
+        results = load_llm_field_results(path)
+
+        assert results["giki"]["admissions_open"] == Field(value="Open", confidence=0.8, note=None)
+
+    def test_missing_admissions_open_key_degrades_to_null_not_crash(self, tmp_path):
+        # Older field-extractor output files predate this field entirely --
+        # must still parse cleanly with admissions_open defaulting to null,
+        # not KeyError.
+        path = tmp_path / "llm_fields.json"
+        path.write_text(json.dumps({
+            "giki": {
+                "deadline": {"value": "2026-08-15", "confidence": 0.9, "note": None},
+                "programs": None,
+                "constituent_college": None,
+            }
+        }), encoding="utf-8")
+
+        results = load_llm_field_results(path)
+
+        assert results["giki"]["admissions_open"] == NULL_FIELD
+        assert results["giki"]["deadline"].value == "2026-08-15"
+
+
+class TestBuildExtractedRecordsAdmissionsOpenPrecedence:
+    def _scraped_record(self, **overrides):
+        record = {
+            "institution_id": "giki",
+            "campus": None,
+            "source_url": "https://admissions.giki.edu.pk",
+            "fetched_at": "2026-07-09T00:00:00Z",
+            "html": "<p>Applications are open for Fall 2026. Last date to apply: 10 August 2026.</p>",
+            "pdfs": [],
+        }
+        record.update(overrides)
+        return record
+
+    def test_llm_sourced_admissions_open_ends_up_on_final_record(self):
+        records = [self._scraped_record()]
+        degree_levels = {"giki": DegreeLevel(value="Undergraduate")}
+        llm_fields = {
+            "giki": {
+                "deadline": NULL_FIELD,
+                "programs": NULL_FIELD,
+                "constituent_college": NULL_FIELD,
+                "admissions_open": Field(value="Closed", confidence=0.9, note="llm-extracted"),
+            }
+        }
+
+        built, _, _ = build_extracted_records(records, degree_levels, llm_fields)
+
+        assert len(built) == 1
+        _, extracted = built[0]
+        # LLM's value wins outright, even though the regex extractor would
+        # have found "Open" in the same scraped text.
+        assert extracted.admissions_open.value == "Closed"
+        assert extracted.admissions_open.note == "llm-extracted"
+
+    def test_regex_fallback_populates_admissions_open_when_no_llm_output(self):
+        records = [self._scraped_record()]
+        degree_levels = {"giki": DegreeLevel(value="Undergraduate")}
+
+        built, _, _ = build_extracted_records(records, degree_levels, llm_fields=None)
+
+        assert len(built) == 1
+        _, extracted = built[0]
+        assert extracted.admissions_open.value == "Open"
+        assert extracted.admissions_open.confidence == 0.8

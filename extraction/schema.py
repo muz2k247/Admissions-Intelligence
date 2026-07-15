@@ -94,6 +94,7 @@ class ExtractedRecord:
     constituent_college: Field
     deadline: Field
     programs: Field
+    admissions_open: Field = NULL_FIELD
 
     def to_dict(self) -> dict:
         return {
@@ -106,6 +107,7 @@ class ExtractedRecord:
             "constituent_college": self.constituent_college.to_dict(),
             "deadline": self.deadline.to_dict(),
             "programs": self.programs.to_dict(),
+            "admissions_open": self.admissions_open.to_dict(),
         }
 
     @classmethod
@@ -120,4 +122,5 @@ class ExtractedRecord:
             constituent_college=Field.from_dict(d.get("constituent_college")),
             deadline=Field.from_dict(d.get("deadline")),
             programs=Field.from_dict(d.get("programs")),
+            admissions_open=Field.from_dict(d.get("admissions_open")),
         )

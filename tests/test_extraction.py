@@ -935,3 +935,101 @@ class TestBuildExtractedRecordsDegreeLevelFiltering:
         built_ids = {chunk_id for chunk_id, _ in built}
         assert built_ids == {"giki", "uhs"}
         assert excluded_postgraduate == 1
+
+
+# ---------------------------------------------------------------------------
+# fields.py — extract_admissions_open (Phase P chunk 2)
+# ---------------------------------------------------------------------------
+
+from extraction.fields import extract_admissions_open  # noqa: E402
+
+
+class TestExtractAdmissionsOpen:
+    def test_empty_text_returns_null_field(self):
+        assert extract_admissions_open("") == NULL_FIELD
+        assert extract_admissions_open(None) == NULL_FIELD
+
+    def test_only_open_phrase_returns_open(self):
+        text = "Applications are open for Fall 2026 admissions."
+        f = extract_admissions_open(text)
+        assert f.value == "Open"
+        assert f.confidence == 0.8
+        assert f.note is None
+
+    def test_only_closed_phrase_returns_closed(self):
+        text = "Admissions closed for the Fall 2026 intake."
+        f = extract_admissions_open(text)
+        assert f.value == "Closed"
+        assert f.confidence == 0.8
+        assert f.note is None
+
+    def test_both_open_and_closed_phrases_conflict_nulls_with_note(self):
+        text = (
+            "Applications are open for Spring 2027. "
+            "Admissions closed for Fall 2026 cycle."
+        )
+        f = extract_admissions_open(text)
+        assert f.value is None
+        assert f.confidence is None
+        assert f.note is not None
+        assert "conflict" in f.note.lower()
+
+    def test_neither_phrase_present_nulls_with_no_note(self):
+        # Critical: absence of signal must never be treated as "Closed" --
+        # this is "no signal", not a negative finding, so note must be
+        # exactly None, not an empty string or any other falsy stand-in.
+        text = "Welcome to our university. Programs offered include BS Computer Science."
+        f = extract_admissions_open(text)
+        assert f.value is None
+        assert f.confidence is None
+        assert f.note is None
+
+    def test_value_is_literal_string_not_boolean(self):
+        f = extract_admissions_open("Apply now for the upcoming semester.")
+        assert f.value == "Open"
+        assert isinstance(f.value, str)
+        assert f.value is not True
+
+
+# ---------------------------------------------------------------------------
+# schema.py — ExtractedRecord.admissions_open (Phase P chunk 2)
+# ---------------------------------------------------------------------------
+
+class TestExtractedRecordAdmissionsOpen:
+    def _make_record(self, admissions_open=None):
+        kwargs = dict(
+            institution_id="giki",
+            campus=None,
+            source_url="https://admissions.giki.edu.pk",
+            fetched_at="2026-07-09T00:00:00Z",
+            chunk_id="giki",
+            degree_level=DegreeLevel(value="Undergraduate"),
+            constituent_college=NULL_FIELD,
+            deadline=Field(value="10 Aug 2026", confidence=0.85),
+            programs=Field(value=["BS"], confidence=0.6),
+        )
+        if admissions_open is not None:
+            kwargs["admissions_open"] = admissions_open
+        return ExtractedRecord(**kwargs)
+
+    def test_default_admissions_open_is_null_field_when_not_passed(self):
+        record = self._make_record()
+        assert record.admissions_open == NULL_FIELD
+
+    def test_round_trip_with_non_null_admissions_open(self):
+        record = self._make_record(admissions_open=Field(value="Open", confidence=0.8))
+        d = record.to_dict()
+        assert d["admissions_open"] == {"value": "Open", "confidence": 0.8, "note": None}
+        record2 = ExtractedRecord.from_dict(d)
+        assert record2 == record
+        assert record2.admissions_open.value == "Open"
+
+    def test_from_dict_missing_admissions_open_key_defaults_to_null(self):
+        minimal = {
+            "institution_id": "giki",
+            "source_url": "https://admissions.giki.edu.pk",
+            "fetched_at": "2026-07-09T00:00:00Z",
+            "chunk_id": "giki",
+        }
+        record = ExtractedRecord.from_dict(minimal)
+        assert record.admissions_open == NULL_FIELD

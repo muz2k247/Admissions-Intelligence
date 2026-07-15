@@ -45,6 +45,34 @@ _DATE_PATTERN = re.compile(
 
 _normalize_date = normalize_date_string  # local alias, kept for call-site brevity below
 
+# "admissions_open" is its own classified signal, read directly off the page's
+# own open/closed language -- never derived from whether extract_deadline's
+# date has passed (CLAUDE.md Phase P: "not derived arithmetically from the
+# deadline"). Absence of either phrase list stays null; it is never inferred
+# as "closed" just because nothing was said (hard rule 1).
+_ADMISSIONS_OPEN_PHRASES = [
+    "applications are open", "admissions are open", "admission is open",
+    "applications open", "admission open", "now accepting applications",
+    "apply now", "registration is open", "registration open",
+]
+_ADMISSIONS_CLOSED_PHRASES = [
+    "admissions closed", "admissions are closed", "admission is closed",
+    "applications closed", "applications are closed", "application is closed",
+    "registration closed", "registration is closed", "applications have closed",
+]
+
+# Word-boundary matched, not raw substring containment -- a plain `in` check
+# would let e.g. "admission open" match inside "admission opens next month"
+# (future tense, not currently open) since "open" is a prefix of "opens".
+_ADMISSIONS_OPEN_PATTERN = re.compile(
+    r"\b(" + "|".join(re.escape(p) for p in _ADMISSIONS_OPEN_PHRASES) + r")\b",
+    re.IGNORECASE,
+)
+_ADMISSIONS_CLOSED_PATTERN = re.compile(
+    r"\b(" + "|".join(re.escape(p) for p in _ADMISSIONS_CLOSED_PHRASES) + r")\b",
+    re.IGNORECASE,
+)
+
 
 _PROGRAM_TOKENS = [
     "BS", "BE", "B.Sc", "BSc", "BBA", "MBBS", "BDS", "ADP",
@@ -196,6 +224,27 @@ def extract_deadline(text: str) -> Field:
     return Field(value=None, confidence=None, note="conflicting deadline candidates found — left null rather than guessed")
 
 
+
+
+def extract_admissions_open(text: str) -> Field:
+    """Whether the page itself states admissions are currently open or
+    closed, read as literal page language, not inferred from the deadline
+    field (see the module-level comment above the phrase lists). Both an
+    open and a closed phrase present is a genuine conflict (e.g. a page
+    describing last cycle's closing alongside this cycle's opening) and
+    nulls rather than guesses which one is current; neither phrase present
+    is simply "no signal", not "closed"."""
+    if not text:
+        return NULL_FIELD
+    is_open = bool(_ADMISSIONS_OPEN_PATTERN.search(text))
+    is_closed = bool(_ADMISSIONS_CLOSED_PATTERN.search(text))
+    if is_open and is_closed:
+        return Field(value=None, confidence=None, note="conflicting open/closed signals found — left null rather than guessed")
+    if is_open:
+        return Field(value="Open", confidence=0.8)
+    if is_closed:
+        return Field(value="Closed", confidence=0.8)
+    return NULL_FIELD
 
 
 def extract_constituent_college(text: str) -> Field:
