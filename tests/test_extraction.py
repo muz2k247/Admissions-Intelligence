@@ -985,10 +985,212 @@ class TestExtractAdmissionsOpen:
         assert f.note is None
 
     def test_value_is_literal_string_not_boolean(self):
-        f = extract_admissions_open("Apply now for the upcoming semester.")
+        f = extract_admissions_open("Applications are open for the upcoming semester.")
         assert f.value == "Open"
         assert isinstance(f.value, str)
         assert f.value is not True
+
+
+# ---------------------------------------------------------------------------
+# fields.py — extract_admissions_open: phrase-coverage follow-up (post-
+# verification precision tuning of the Phase P chunk 2 heuristic)
+# ---------------------------------------------------------------------------
+
+class TestExtractAdmissionsOpenNewPhrases:
+    """Each newly-added phrase, one representative sentence per phrase family
+    (not every literal entry) -- mechanical tense/subject variants of the
+    already-trusted "X are open"/"X closed" structures."""
+
+    def test_application_is_open_singular(self):
+        assert extract_admissions_open("Application is open for BS Computer Science.").value == "Open"
+
+    def test_admissions_open_bare_plural(self):
+        # Previously a real gap -- only the singular "admission open" existed.
+        assert extract_admissions_open("Admissions open for the Fall 2026 intake.").value == "Open"
+
+    def test_admissions_are_now_open(self):
+        assert extract_admissions_open("Admissions are now open for the Fall 2026 semester.").value == "Open"
+
+    def test_applications_now_open(self):
+        assert extract_admissions_open("Applications now open for all engineering programs.").value == "Open"
+
+    def test_admissions_remain_open(self):
+        assert extract_admissions_open("Admissions remain open until seats are filled.").value == "Open"
+
+    def test_admissions_have_opened(self):
+        assert extract_admissions_open("Admissions have opened for the new academic year.").value == "Open"
+
+    def test_admissions_have_commenced(self):
+        # Only the "admissions"-subject form is kept -- "applications have
+        # commenced" is excluded (see TestExtractAdmissionsOpenExclusions).
+        assert extract_admissions_open("Admissions have commenced for the new academic year.").value == "Open"
+
+    def test_admissions_have_closed(self):
+        # Existing asymmetry: "applications have closed" existed, "admissions
+        # have closed" didn't.
+        assert extract_admissions_open("Admissions have closed for this cycle.").value == "Closed"
+
+    def test_admissions_are_no_longer_open(self):
+        assert extract_admissions_open("Admissions are no longer open for Fall 2026.").value == "Closed"
+
+    def test_applications_have_ended(self):
+        assert extract_admissions_open("Applications have ended for the Spring intake.").value == "Closed"
+
+    def test_admission_portal_is_closed(self):
+        assert extract_admissions_open("The admission portal is closed until next cycle.").value == "Closed"
+
+
+class TestExtractAdmissionsOpenExclusions:
+    """Phrases deliberately NOT added, per the module-level comment above the
+    phrase lists -- confirms the exclusions actually hold at runtime."""
+
+    def test_apply_now_no_longer_matches(self):
+        # Generic marketing language, removed as a precision fix.
+        f = extract_admissions_open("Apply now for the upcoming semester.")
+        assert f.value is None
+        assert f.confidence is None
+
+    def test_applications_are_invited_is_not_recognized(self):
+        # Structurally identical to scholarship/job/tender language; left to
+        # the LLM field-extractor's contextual judgment.
+        f = extract_admissions_open("Applications are invited from intending candidates for BS programs.")
+        assert f.value is None
+
+    def test_applications_invited_headline_form_not_recognized(self):
+        f = extract_admissions_open("Applications Invited for Fall 2026 Admissions")
+        assert f.value is None
+
+    def test_register_now_stays_null(self):
+        f = extract_admissions_open("Register now to secure your spot in our workshop.")
+        assert f.value is None
+
+    def test_enrol_now_stays_null(self):
+        f = extract_admissions_open("Enrol now and start your journey with us.")
+        assert f.value is None
+
+    def test_join_us_stays_null(self):
+        f = extract_admissions_open("Join us for an exciting academic year ahead.")
+        assert f.value is None
+
+    def test_applications_have_commenced_stays_null(self):
+        # Unlike "admissions have commenced" (kept), "applications" alone has
+        # the same scholarship/job/tender ambiguity as "applications are
+        # invited".
+        f = extract_admissions_open("Scholarship applications have commenced for eligible students.")
+        assert f.value is None
+
+    def test_registration_is_open_no_longer_matches(self):
+        # Removed: as generic as "apply now" -- course/event registration,
+        # not necessarily admissions.
+        f = extract_admissions_open("Course registration is open for continuing students.")
+        assert f.value is None
+
+    def test_registration_closed_no_longer_matches(self):
+        f = extract_admissions_open("Registration closed for the workshop.")
+        assert f.value is None
+
+
+class TestExtractAdmissionsOpenScheduledDateFalsePositive:
+    """"Open from/on [date]" states a scheduled date, not a current status --
+    the pattern can't tell whether that date is past or future, so it must
+    null rather than guess "Open". But the lookahead requires an actual
+    date-shaped continuation, so ordinary non-date uses of "on" (location,
+    scope) must NOT be suppressed."""
+
+    def test_open_on_date_nulls(self):
+        f = extract_admissions_open("Admissions open on August 1, 2026.")
+        assert f.value is None
+        assert f.confidence is None
+
+    def test_open_from_date_nulls(self):
+        f = extract_admissions_open("Applications open from September 15, 2026.")
+        assert f.value is None
+
+    def test_open_from_iso_date_nulls(self):
+        f = extract_admissions_open("Admissions open from 2026-08-15.")
+        assert f.value is None
+
+    def test_admissions_open_from_colon_ordinal_info_box_style_nulls(self):
+        # Regression check for the ordinal-suffix boundary bug: "1st" is a
+        # digit directly followed by word-char letters, so a trailing \b
+        # right after the digit would never hold and silently defeat this
+        # whole branch if reintroduced.
+        f = extract_admissions_open("Admissions Open From: 1st August 2026")
+        assert f.value is None
+
+    def test_plain_open_without_from_or_on_still_matches(self):
+        # Regression check: the lookahead must not over-suppress the
+        # ordinary bare-phrase match when no scheduling word follows.
+        f = extract_admissions_open("Admissions open for all BS programs this year.")
+        assert f.value == "Open"
+
+    def test_open_followed_by_unrelated_word_still_matches(self):
+        # "on"/"from" only excluded when followed by something date-shaped --
+        # confirms the lookahead isn't accidentally too broad.
+        f = extract_admissions_open("Admissions open now, apply before seats fill up.")
+        assert f.value == "Open"
+
+    def test_open_on_campus_not_a_date_still_matches(self):
+        # "on" introducing a location/scope, not a schedule -- must NOT be
+        # suppressed (this was a real false negative in an earlier version
+        # of the lookahead that excluded any "on" unconditionally).
+        f = extract_admissions_open("Admissions are open on all campuses.")
+        assert f.value == "Open"
+
+    def test_open_on_the_following_programs_not_a_date_still_matches(self):
+        f = extract_admissions_open("Admission is open on the following programs.")
+        assert f.value == "Open"
+
+    def test_open_from_today_not_a_scheduled_future_date_still_matches(self):
+        # "from today" unambiguously means starting now, unlike "from
+        # [future date]" -- the narrower date-shaped lookahead correctly
+        # lets this one through where the earlier blanket "from" exclusion
+        # would not have.
+        f = extract_admissions_open("Applications are open from today.")
+        assert f.value == "Open"
+
+
+class TestExtractAdmissionsOpenTenseEdgeCases:
+    """Future-tense and historical phrasing must stay null -- confirms these
+    already-correct cases still hold after the phrase-list expansion above
+    (more phrases = more chances for an unintended new match)."""
+
+    def test_admissions_will_open_future_tense_nulls(self):
+        assert extract_admissions_open("Admissions will open on August 1, 2026.").value is None
+
+    def test_admission_opens_next_month_future_tense_nulls(self):
+        assert extract_admissions_open("Admission opens next month, stay tuned for updates.").value is None
+
+    def test_applications_begin_on_future_tense_nulls(self):
+        assert extract_admissions_open("Applications begin on September 1, 2026.").value is None
+
+    def test_admissions_were_open_historical_nulls(self):
+        assert extract_admissions_open("Admissions were open last year for this program.").value is None
+
+    def test_admissions_opened_last_year_simple_past_nulls(self):
+        # Simple past ("opened", no "have") is tense-ambiguous -- deliberately
+        # not in the phrase list, unlike "admissions have opened".
+        assert extract_admissions_open("Admissions opened last year and the cycle has since ended.").value is None
+
+
+class TestExtractAdmissionsOpenConflictWithNewPhrases:
+    def test_new_open_phrase_conflicts_with_new_closed_phrase(self):
+        text = "Admissions remain open for Spring 2027. Applications have closed for Fall 2026."
+        f = extract_admissions_open(text)
+        assert f.value is None
+        assert f.note is not None
+        assert "conflict" in f.note.lower()
+
+    def test_multiple_cycles_one_open_one_closed_on_same_page_nulls(self):
+        # Known simplification (see extract_admissions_open's docstring): no
+        # per-program breakdown, unlike extract_deadline's labeled multi-
+        # track list -- a mixed page still nulls the whole field.
+        text = (
+            "MBBS admissions are closed for this cycle. "
+            "BS Computer Science admissions are now open."
+        )
+        f = extract_admissions_open(text)
+        assert f.value is None
 
 
 # ---------------------------------------------------------------------------

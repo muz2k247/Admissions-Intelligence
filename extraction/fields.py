@@ -50,22 +50,90 @@ _normalize_date = normalize_date_string  # local alias, kept for call-site brevi
 # date has passed (CLAUDE.md Phase P: "not derived arithmetically from the
 # deadline"). Absence of either phrase list stays null; it is never inferred
 # as "closed" just because nothing was said (hard rule 1).
+#
+# Deliberately excluded, and why (don't "helpfully" re-add these):
+# - "applications are invited" / "applications invited" / "inviting
+#   applications" -- extremely common in real admission notices, but the
+#   phrase itself is structurally identical to scholarship/job/tender/event-
+#   registration language ("Applications are invited for the position of...").
+#   Nothing in the phrase anchors it to student admissions, and unlike
+#   extract_deadline's primary/secondary keyword tiering there's no
+#   unambiguous variant of this one to prefer. This is exactly the page-
+#   context judgment call the LLM field-extractor subagent is for -- its
+#   contract already lets it recognize this phrasing "in its own words"
+#   without a fixed list, so leaving it out of the regex fallback is the
+#   conservative choice.
+# - "apply now" -- generic marketing language ("Apply now for our
+#   scholarship", "Apply now -- 20% off") that doesn't mention admissions or
+#   applications-as-a-process at all. Removed as a precision fix.
+# - "registration is open"/"registration closed" and their variants --
+#   removed for the same reason as "apply now": "registration" is just as
+#   commonly course/semester registration for already-enrolled students, or
+#   event/webinar registration, as it is admissions ("Course registration is
+#   open for continuing students" is not an admissions signal). Left to the
+#   LLM path, same as "applications are invited".
+# - "applications have commenced" -- unlike "admissions have commenced"
+#   (kept below; "admissions" alone reliably means student admissions),
+#   "applications" alone has the same scholarship/job/tender ambiguity as
+#   "applications are invited" above ("Scholarship applications have
+#   commenced..."). Only the "admissions"-subject form is kept.
+# - Bare simple-past forms ("admissions opened", "were open") -- genuinely
+#   tense-ambiguous ("Admissions opened last year" vs "...yesterday and are
+#   still running") with no reliable keyword-level disambiguation.
+#   "admissions have opened" (present perfect) is the safe version: it
+#   unambiguously means "and still are", so that's what's listed below.
 _ADMISSIONS_OPEN_PHRASES = [
     "applications are open", "admissions are open", "admission is open",
-    "applications open", "admission open", "now accepting applications",
-    "apply now", "registration is open", "registration open",
+    "application is open", "applications open", "admission open",
+    "admissions open", "admissions are now open", "applications are now open",
+    "admissions now open", "applications now open", "admissions remain open",
+    "applications remain open", "admissions have opened",
+    "applications have opened", "admissions have commenced",
+    "now accepting applications",
 ]
 _ADMISSIONS_CLOSED_PHRASES = [
     "admissions closed", "admissions are closed", "admission is closed",
     "applications closed", "applications are closed", "application is closed",
-    "registration closed", "registration is closed", "applications have closed",
+    "admissions have closed", "applications have closed",
+    "admissions are no longer open", "applications are no longer open",
+    "admissions have ended", "applications have ended",
+    "admission portal is closed", "application portal is closed",
 ]
+
+# Same month-name set _DATE_PATTERN already trusts, reused here so both
+# "recognize a date" checks in this file stay in sync.
+_MONTH_NAMES = (
+    r"January|February|March|April|May|June|July|August|September|October|"
+    r"November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec"
+)
 
 # Word-boundary matched, not raw substring containment -- a plain `in` check
 # would let e.g. "admission open" match inside "admission opens next month"
 # (future tense, not currently open) since "open" is a prefix of "opens".
+#
+# The OPEN pattern also rejects a match immediately followed by "from"/"on" +
+# something date-shaped (a digit or month name, e.g. "Admissions Open From:
+# 1st August 2026" or "Admissions open on August 1, 2026") -- that phrasing
+# states a *scheduled* date, and without knowing whether it's past or future
+# relative to today, treating it as a current "Open" signal would be a guess.
+# Deliberately requires a date-shaped continuation, not bare "from"/"on":
+# an earlier version excluded any "on"/"from" unconditionally, which also
+# nulled clearly-current statements like "admissions are open on all
+# campuses" or "registration is open on our website" -- a real recall cost
+# with no matching precision benefit, since those aren't schedule
+# announcements at all. This narrower check still won't catch every
+# scheduling phrasing (e.g. "admissions open starting from August 1" slips
+# through, since "starting" sits between "open" and "from") -- accepted as
+# the same rare-wording tradeoff already made elsewhere in this module,
+# not chased further to keep this a simple heuristic. Not applied to the
+# CLOSED pattern -- those phrases are all unambiguous present-tense-closed
+# forms with no equivalent scheduling risk.
 _ADMISSIONS_OPEN_PATTERN = re.compile(
-    r"\b(" + "|".join(re.escape(p) for p in _ADMISSIONS_OPEN_PHRASES) + r")\b",
+    r"\b(" + "|".join(re.escape(p) for p in _ADMISSIONS_OPEN_PHRASES) + r")\b"
+    # \d has no trailing \b: an ordinal like "1st" is a digit directly
+    # followed by word-char letters, so a boundary assertion right after
+    # the digit would never hold and silently defeat this whole branch.
+    r"(?!\s+(?:from|on)\b[:\s]*(?:\d|(?:" + _MONTH_NAMES + r")\b))",
     re.IGNORECASE,
 )
 _ADMISSIONS_CLOSED_PATTERN = re.compile(
@@ -231,9 +299,16 @@ def extract_admissions_open(text: str) -> Field:
     closed, read as literal page language, not inferred from the deadline
     field (see the module-level comment above the phrase lists). Both an
     open and a closed phrase present is a genuine conflict (e.g. a page
-    describing last cycle's closing alongside this cycle's opening) and
-    nulls rather than guesses which one is current; neither phrase present
-    is simply "no signal", not "closed"."""
+    describing last cycle's closing alongside this cycle's opening, or one
+    program's status alongside another's on the same page) and nulls rather
+    than guesses which one is current; neither phrase present is simply "no
+    signal", not "closed". This is a known simplification -- unlike
+    extract_deadline's labeled multi-track list, there's no per-program
+    breakdown here, and no scoping to "only sentences about undergraduate
+    admissions" (that's the content-classifier's job, hard rule 3; a mixed
+    UG/PG page's PG-specific open/closed language can still surface here).
+    Both are left to the LLM field-extractor's contextual judgment rather
+    than attempted with keyword matching."""
     if not text:
         return NULL_FIELD
     is_open = bool(_ADMISSIONS_OPEN_PATTERN.search(text))
