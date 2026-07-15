@@ -24,9 +24,11 @@ from pathlib import Path
 from extraction.chunker import chunk_scraped_record
 from extraction.classify import load_classifier_results
 from extraction.llm_fields import load_llm_field_results
+from extraction.review_gate import content_hash, flagged_fields, needs_review
 from extraction.run import build_extracted_records, write_extracted_records
 from extraction.schema import ExtractedRecord
 from pipeline.overrides import fetch_overrides, merge_overrides
+from pipeline.review import fetch_review_decisions, fetch_review_settings
 from scraper.config import load_institutions, iter_sources
 from scraper.fetch import build_session, fetch_source
 
@@ -60,6 +62,26 @@ def _field_coverage(records: list[ExtractedRecord]) -> float | None:
         1 for r in records for name in _COVERAGE_FIELDS if getattr(r, name).value is not None
     )
     return non_null / total
+
+
+def _load_published_records(path: Path) -> list[ExtractedRecord]:
+    """Load a previously-published records.json or needs_review.json for
+    the coverage-guard baseline. Returns [] if the file is missing or
+    malformed -- there's nothing trustworthy to compare against, which the
+    guard's own None/0 checks already treat as "skip this signal" rather
+    than a reason to fail stage 5 (which validates the *new* records
+    separately, above)."""
+    if not path.is_file():
+        return []
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        return [ExtractedRecord.from_dict(d) for d in raw]
+    except Exception:
+        # Deliberately broad: the failure modes here are open-ended (bad
+        # JSON, wrong shape, unexpected None entries), and every one of them
+        # should degrade to "nothing to compare against", not crash an
+        # otherwise-valid publish.
+        return []
 
 
 def _load_scraped_records(scraped_dir: Path) -> list[dict]:
@@ -290,13 +312,15 @@ def _write_json_files_atomic(files: dict[Path, object]) -> None:
     """Write every (path -> payload) pair to a PID-scoped temp sibling first;
     only once ALL temp writes succeed are they os.replace()'d into place.
 
-    This publishes records.json and institutions.json as one unit: if a
-    later file's write fails after an earlier file's temp write already
-    succeeded, nothing has been replaced yet, so neither previously-published
-    file is touched -- avoiding a mismatched pair (e.g. new records.json
-    paired with stale institutions.json). The PID-scoped temp name also
-    avoids two overlapping pipeline runs racing on the same temp path.
-    Raises OSError on failure; caller decides how to report it.
+    This publishes every file passed in (records.json, institutions.json,
+    and needs_review.json) as one unit: if a later file's write fails after
+    an earlier file's temp write already succeeded, nothing has been
+    replaced yet, so none of the previously-published files are touched --
+    avoiding a mismatched set (e.g. new records.json paired with stale
+    institutions.json, or a needs_review.json that's out of sync with
+    either). The PID-scoped temp name also avoids two overlapping pipeline
+    runs racing on the same temp path. Raises OSError on failure; caller
+    decides how to report it.
     """
     tmp_paths: dict[Path, Path] = {}
     try:
@@ -330,9 +354,11 @@ def stage_5_publish(extracted_dir: Path, publish_dir: Path, allow_coverage_drop:
     to publishing the pipeline-extracted values rather than failing.
 
     Before writing, two signals for the new record set are compared against
-    the currently-published records.json: field coverage (_field_coverage)
-    and distinct institution count (_institution_count) -- coverage alone
-    can't tell "extraction quality regressed" apart from "most institutions
+    the currently-published records.json + needs_review.json (the FULL
+    record set, unaffected by the Needs-Review gate below -- see that
+    section's comment for why): field coverage (_field_coverage) and
+    distinct institution count (_institution_count) -- coverage alone can't
+    tell "extraction quality regressed" apart from "most institutions
     failed to scrape but the few survivors extracted cleanly," since the
     latter can leave fill-rate flat or even higher while the actual data
     volume collapses. A zero-record run is already refused above the
@@ -344,6 +370,25 @@ def stage_5_publish(extracted_dir: Path, publish_dir: Path, allow_coverage_drop:
     Pass allow_coverage_drop=True to publish anyway (e.g. a genuine, expected
     drop like admissions season ending, or an institution intentionally
     disabled in config).
+
+    Needs-Review gate (Phase Q): after the coverage guard, each record is
+    evaluated by extraction/review_gate.py::needs_review() against an
+    admin-configurable confidence threshold (pipeline/review.py::
+    fetch_review_settings(), defaulting fail-safe to {enabled: True,
+    threshold: 0.8} on any failure). A record that isn't flagged auto-
+    publishes. A flagged record only publishes if a matching curator
+    decision exists in Firestore's review_decisions collection (pipeline/
+    review.py::fetch_review_decisions()) whose stored content_hash equals
+    the record's CURRENT content_hash -- a re-scrape that changes any
+    reviewable field produces a different hash, so a stale approval/
+    rejection doesn't silently keep publishing or dropping a record whose
+    content has since changed; it re-queues instead. Rejected (matching-
+    hash) records are dropped entirely. Everything else pending lands in
+    needs_review.json (published alongside records.json, technically
+    public like every other pipeline output in this project -- security
+    here is Firestore write rules, not file obscurity) for curator review.
+    Disabling the gate (settings.enabled = False) publishes every record
+    exactly as before Phase Q, with an empty needs_review.json.
 
     Returns:
         0 if publish succeeds.
@@ -393,25 +438,29 @@ def stage_5_publish(extracted_dir: Path, publish_dir: Path, allow_coverage_drop:
 
     new_coverage = _field_coverage(records)
     new_institution_count = _institution_count(records)
-    previous_records_path = publish_dir / "records.json"
-    previous_coverage: float | None = None
-    previous_institution_count: int | None = None
-    if previous_records_path.is_file():
-        try:
-            previous_raw = json.loads(previous_records_path.read_text(encoding="utf-8"))
-            previous_records = [ExtractedRecord.from_dict(d) for d in previous_raw]
-            previous_coverage = _field_coverage(previous_records)
-            previous_institution_count = _institution_count(previous_records)
-        except Exception:
-            # A malformed/unreadable previous file means there's nothing
-            # trustworthy to compare against -- not a reason to fail stage 5,
-            # which already has its own strict validation for the *new*
-            # records above. Deliberately broad: the failure modes here are
-            # open-ended (bad JSON, wrong shape, unexpected None entries),
-            # and every one of them should degrade to "skip the guard", not
-            # crash a publish that is otherwise valid.
-            previous_coverage = None
-            previous_institution_count = None
+    # Baseline is the UNION of the previously-published records.json and
+    # needs_review.json -- the full extraction from the last run, not just
+    # what the Needs-Review gate let through to records.json. Comparing a
+    # gated subset against this run's full set would make turning the gate
+    # on (or a curator's approve/reject backlog shrinking/growing) look like
+    # a coverage regression even though nothing about extraction changed.
+    #
+    # Known accepted gap: a record with a matching-hash "rejected" decision
+    # (see the gating block below) is dropped from BOTH files and so drops
+    # out of this baseline too, permanently (as long as its content -- and
+    # thus content_hash -- doesn't change). A later genuine scrape failure
+    # for exactly that record would not be caught by this guard, since the
+    # baseline stopped counting it once rejected. Accepted rather than fixed
+    # here: closing it would mean persisting a separate pre-gate "last full
+    # extraction" snapshot purely for guard bookkeeping, which is more
+    # machinery than this narrow edge case (a curator having actively
+    # rejected a record, which a human already looked at) currently
+    # justifies.
+    previous_records = _load_published_records(publish_dir / "records.json")
+    previous_needs_review = _load_published_records(publish_dir / "needs_review.json")
+    previous_full = previous_records + previous_needs_review
+    previous_coverage = _field_coverage(previous_full) if previous_full else None
+    previous_institution_count = _institution_count(previous_full) if previous_full else None
 
     coverage_dropped = (
         previous_coverage is not None
@@ -448,6 +497,54 @@ def stage_5_publish(extracted_dir: Path, publish_dir: Path, allow_coverage_drop:
         )
         return 1
 
+    # Needs-Review gate (Phase Q). fetch_review_settings() returns {} on any
+    # failure -- fail-safe direction is "gate stays on", never "gate off"
+    # (see pipeline/review.py). Applied to the same full `records` list the
+    # coverage guard above just measured, so gating never influences that
+    # guard.
+    settings = fetch_review_settings()
+    to_publish: list[ExtractedRecord] = []
+    to_queue: list[dict] = []
+    if not settings.get("enabled", True):
+        to_publish = records
+        print("Needs-review gate disabled (settings/review_gate) -- publishing all records.")
+    else:
+        threshold = settings.get("threshold", 0.8)
+        # Defensive: fetch_review_settings() already validates threshold is
+        # a bounded float before returning it, but don't let a future
+        # change to that contract (or a test/mocked settings dict) turn
+        # into a crashed publish here -- degrade to the default instead.
+        if not isinstance(threshold, (int, float)) or isinstance(threshold, bool) or not (0.0 <= threshold <= 1.0):
+            threshold = 0.8
+        decisions = fetch_review_decisions()
+        auto_count = approved_count = rejected_count = 0
+        for record in records:
+            if not needs_review(record, threshold=threshold):
+                to_publish.append(record)
+                auto_count += 1
+                continue
+            record_hash = content_hash(record)
+            decision = decisions.get(record.chunk_id)
+            if decision is not None and decision.get("content_hash") == record_hash:
+                if decision["decision"] == "approved":
+                    to_publish.append(record)
+                    approved_count += 1
+                    continue
+                # "rejected" -- dropped entirely, not published, not queued.
+                rejected_count += 1
+                continue
+            # No decision, or a stale one (hash no longer matches this run's
+            # content) -- stays pending for curator review.
+            queued = record.to_dict()
+            queued["flagged_fields"] = flagged_fields(record, threshold=threshold)
+            queued["content_hash"] = record_hash
+            to_queue.append(queued)
+        print(
+            f"Needs-review gate (threshold={threshold}): {auto_count} auto-published, "
+            f"{approved_count} approved from queue, {rejected_count} rejected (dropped), "
+            f"{len(to_queue)} pending review."
+        )
+
     try:
         institutions_payload = _institutions_payload()
     except (OSError, KeyError, ValueError) as exc:
@@ -457,16 +554,17 @@ def stage_5_publish(extracted_dir: Path, publish_dir: Path, allow_coverage_drop:
     publish_dir.mkdir(parents=True, exist_ok=True)
     try:
         _write_json_files_atomic({
-            publish_dir / "records.json": [r.to_dict() for r in records],
+            publish_dir / "records.json": [r.to_dict() for r in to_publish],
             publish_dir / "institutions.json": institutions_payload,
+            publish_dir / "needs_review.json": to_queue,
         })
     except OSError as exc:
         print(f"ERROR: Failed to write published data: {exc}", file=sys.stderr)
         return 1
 
     print(
-        f"Stage 5 summary: {len(records)} record(s) and {len(institutions_payload)} "
-        f"institution(s) published to {publish_dir}"
+        f"Stage 5 summary: {len(to_publish)} record(s), {len(to_queue)} queued for review, "
+        f"and {len(institutions_payload)} institution(s) published to {publish_dir}"
     )
     return 0
 

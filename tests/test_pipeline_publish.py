@@ -24,12 +24,19 @@ from scraper.config import DEFAULT_CONFIG_PATH, Institution, Source, load_instit
 
 @pytest.fixture(autouse=True)
 def _no_live_firestore(monkeypatch):
-    """stage_5_publish now merges curator overrides via fetch_overrides(),
-    which makes a live Firestore REST call. Stub it to {} by default so every
-    publish test stays hermetic (no network) and behaves exactly as it did
-    before Phase K (no overrides applied). Tests that specifically exercise
-    the override merge re-patch run_full.fetch_overrides themselves."""
+    """stage_5_publish merges curator overrides via fetch_overrides() and
+    (Phase Q) reads the Needs-Review gate's settings/decisions via
+    fetch_review_settings()/fetch_review_decisions() -- all three make a
+    live Firestore REST call. Stub them so every publish test stays
+    hermetic (no network): overrides default to none applied, and the gate
+    defaults to enabled at the standard 0.8 threshold with no decisions
+    (matching production's fail-safe defaults), which lets every existing
+    fixture record (deadline confidence 0.85, i.e. not flagged) keep
+    auto-publishing exactly as it did before Phase Q. Tests that
+    specifically exercise overrides or the gate re-patch these themselves."""
     monkeypatch.setattr(run_full, "fetch_overrides", lambda *a, **k: {})
+    monkeypatch.setattr(run_full, "fetch_review_settings", lambda *a, **k: {"enabled": True, "threshold": 0.8})
+    monkeypatch.setattr(run_full, "fetch_review_decisions", lambda *a, **k: {})
 
 
 def _write_extracted_record(extracted_dir, filename, chunk_id="giki", **overrides):
@@ -256,7 +263,7 @@ class TestStage5Publish:
 
         assert rc == 0
         names = sorted(p.name for p in publish_dir.iterdir())
-        assert names == ["institutions.json", "records.json"]
+        assert names == ["institutions.json", "needs_review.json", "records.json"]
 
     def test_institutions_json_matches_real_registry_shape(self, tmp_path):
         extracted_dir = tmp_path / "extracted"
@@ -424,7 +431,7 @@ class TestStage5PublishGaps:
         assert unrelated.exists()
         assert unrelated.read_text(encoding="utf-8") == "leftover from manual debugging"
         names = sorted(p.name for p in publish_dir.iterdir())
-        assert names == ["institutions.json", "old_report.txt", "records.json"]
+        assert names == ["institutions.json", "needs_review.json", "old_report.txt", "records.json"]
 
     # -- 4. _institutions_payload() edge cases -------------------------------
 
@@ -476,14 +483,14 @@ class TestStage5PublishGaps:
     def test_write_failure_on_one_file_leaves_both_previously_published_files_untouched(
         self, tmp_path, monkeypatch
     ):
-        """stage_5_publish writes both files as one unit via
+        """stage_5_publish writes all three files as one unit via
         _write_json_files_atomic: every payload is written to a temp sibling
         first, and only once ALL temp writes succeed are any of them
         os.replace()'d into place. So if writing institutions.json's temp
-        file fails, records.json's temp file was already written but never
-        replaced -- publish_dir must still show run1's original pair, not a
-        new records.json paired with a stale institutions.json. The failure
-        is also caught and reported (return 1), not an unhandled OSError.
+        file fails, the others' temp files were already written but never
+        replaced -- publish_dir must still show run1's original trio, not a
+        mix of new and stale files. The failure is also caught and reported
+        (return 1), not an unhandled OSError.
         """
         extracted_dir = tmp_path / "extracted"
         publish_dir = tmp_path / "publish"
@@ -492,6 +499,7 @@ class TestStage5PublishGaps:
         assert rc1 == 0
         stale_records = (publish_dir / "records.json").read_text(encoding="utf-8")
         stale_institutions = (publish_dir / "institutions.json").read_text(encoding="utf-8")
+        stale_needs_review = (publish_dir / "needs_review.json").read_text(encoding="utf-8")
 
         extracted_dir2 = tmp_path / "extracted2"
         _write_extracted_record(extracted_dir2, "giki.json", chunk_id="run2-new-data")
@@ -510,8 +518,9 @@ class TestStage5PublishGaps:
         assert rc2 == 1
         assert (publish_dir / "records.json").read_text(encoding="utf-8") == stale_records
         assert (publish_dir / "institutions.json").read_text(encoding="utf-8") == stale_institutions
+        assert (publish_dir / "needs_review.json").read_text(encoding="utf-8") == stale_needs_review
         # No leftover temp file from the aborted write.
-        assert sorted(p.name for p in publish_dir.iterdir()) == ["institutions.json", "records.json"]
+        assert sorted(p.name for p in publish_dir.iterdir()) == ["institutions.json", "needs_review.json", "records.json"]
 
     # -- 5. CLI wiring for `stage5` ------------------------------------------
 

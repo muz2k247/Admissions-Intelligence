@@ -20,6 +20,8 @@ import pipeline.run_full as run_full
 @pytest.fixture(autouse=True)
 def _no_live_firestore(monkeypatch):
     monkeypatch.setattr(run_full, "fetch_overrides", lambda *a, **k: {})
+    monkeypatch.setattr(run_full, "fetch_review_settings", lambda *a, **k: {"enabled": True, "threshold": 0.8})
+    monkeypatch.setattr(run_full, "fetch_review_decisions", lambda *a, **k: {})
 
 
 def _record(chunk_id, institution_id="giki", deadline=None, programs=None, constituent_college=None):
