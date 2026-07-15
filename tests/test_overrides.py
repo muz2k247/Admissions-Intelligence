@@ -392,3 +392,64 @@ class TestMergeOverrides:
 
         assert merged.programs.value == ["BS CS"]
         assert merged.degree_level == record.degree_level  # untouched
+
+    def test_admissions_open_override_replaces_field_leaves_rest_untouched(self):
+        record = _record(
+            chunk_id="giki",
+            admissions_open=Field(value="Closed", confidence=0.8),
+        )
+        overrides = {
+            "giki": {
+                "admissions_open": Field(value="Open", confidence=1.0, note="human-verified"),
+            }
+        }
+
+        merged = merge_overrides(record, overrides)
+
+        assert merged.admissions_open == Field(value="Open", confidence=1.0, note="human-verified")
+        # everything else on the record stays untouched
+        assert merged.source_url == record.source_url
+        assert merged.institution_id == record.institution_id
+        assert merged.campus == record.campus
+        assert merged.fetched_at == record.fetched_at
+        assert merged.chunk_id == record.chunk_id
+        assert merged.degree_level == record.degree_level
+        assert merged.constituent_college == record.constituent_college
+        assert merged.deadline == record.deadline
+        assert merged.programs == record.programs
+
+    def test_admissions_open_absent_from_chunk_override_is_unaffected(self):
+        # Only deadline is overridden for this chunk -- admissions_open must
+        # be left completely alone, confirming the "only fields present in
+        # this chunk's override entry are touched" behavior still holds now
+        # that there's a 4th overridable field.
+        record = _record(
+            chunk_id="giki",
+            admissions_open=Field(value="Open", confidence=0.9),
+        )
+        overrides = {
+            "giki": {"deadline": Field(value="2026-08-15", confidence=1.0, note="human-verified")},
+        }
+
+        merged = merge_overrides(record, overrides)
+
+        assert merged.admissions_open == record.admissions_open
+        assert merged.deadline == Field(value="2026-08-15", confidence=1.0, note="human-verified")
+
+
+# ---------------------------------------------------------------------------
+# admissions_open coverage in _decode_document
+# ---------------------------------------------------------------------------
+
+class TestDecodeDocumentAdmissionsOpen:
+    def test_admissions_open_field_decodes(self):
+        doc = _fs_document("giki", {"admissions_open": ("Open", 0.95, "regex-fallback")})
+        chunk_id, fields = _decode_document(doc)
+
+        assert chunk_id == "giki"
+        assert fields["admissions_open"] == Field(value="Open", confidence=0.95, note="regex-fallback")
+
+    def test_admissions_open_absent_from_document_is_not_in_result(self):
+        doc = _fs_document("giki", {"deadline": ("2026-08-15", 1.0, None)})
+        _, fields = _decode_document(doc)
+        assert "admissions_open" not in fields

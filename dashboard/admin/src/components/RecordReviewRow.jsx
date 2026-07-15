@@ -5,6 +5,7 @@ const FIELD_LABELS = {
   deadline: "Deadline",
   programs: "Programs",
   constituent_college: "Constituent college",
+  admissions_open: "Admissions status",
 };
 
 /* Render a published field's value for display. Handles the three shapes the
@@ -80,6 +81,16 @@ function FieldEditor({ record, fieldName }) {
       setStatus("A correction can't be empty. Type a value or leave the field as-is.");
       return;
     }
+    // admissions_open is a controlled vocabulary -- AdmissionsStatusBadge on
+    // the public dashboard only recognizes the literal strings "Open"/
+    // "Closed" and silently renders nothing for anything else, so a stray
+    // value here would look "saved" to the curator but never actually show
+    // up. The <select> below already constrains input to these two values,
+    // this is a defense-in-depth check in case that ever changes.
+    if (fieldName === "admissions_open" && value !== "Open" && value !== "Closed") {
+      setStatus('Admissions status must be exactly "Open" or "Closed".');
+      return;
+    }
     try {
       await saveFieldOverride(record.chunk_id, record, fieldName, value);
       setSavedValue(value);
@@ -116,13 +127,28 @@ function FieldEditor({ record, fieldName }) {
 
       {editing && (
         <div className="editor">
-          <input
-            className="input"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder={fieldName === "programs" ? "BS CS, BE EE, …" : "Corrected value"}
-            aria-label={`Corrected ${FIELD_LABELS[fieldName]}`}
-          />
+          {fieldName === "admissions_open" ? (
+            <select
+              className="input"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              aria-label={`Corrected ${FIELD_LABELS[fieldName]}`}
+            >
+              <option value="" disabled>
+                Select a status
+              </option>
+              <option value="Open">Open</option>
+              <option value="Closed">Closed</option>
+            </select>
+          ) : (
+            <input
+              className="input"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder={fieldName === "programs" ? "BS CS, BE EE, …" : "Corrected value"}
+              aria-label={`Corrected ${FIELD_LABELS[fieldName]}`}
+            />
+          )}
           <div className="editor__actions">
             <button className="btn btn--primary btn--sm" onClick={handleSave} disabled={status === "saving"}>
               {status === "saving" ? "Saving…" : "Save"}

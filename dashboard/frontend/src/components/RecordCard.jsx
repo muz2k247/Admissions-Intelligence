@@ -1,3 +1,4 @@
+import AdmissionsStatusBadge from "./AdmissionsStatusBadge";
 import DegreeLevelBadge from "./DegreeLevelBadge";
 import { ExternalLinkIcon } from "./Icons";
 
@@ -59,7 +60,10 @@ export default function RecordCard({ record, institutionName, isAdmittingBody })
           <h2 className="record-card__title">{institutionName ?? record.institution_id}</h2>
           {record.campus && <p className="record-card__campus">{record.campus}</p>}
         </div>
-        <DegreeLevelBadge degreeLevel={record.degree_level} />
+        <div className="record-card__badges">
+          <DegreeLevelBadge degreeLevel={record.degree_level} />
+          <AdmissionsStatusBadge admissionsOpen={record.admissions_open} />
+        </div>
       </header>
 
       <div className="record-card__fields">

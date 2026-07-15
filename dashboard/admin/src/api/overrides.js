@@ -1,10 +1,10 @@
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db, auth } from "../firebase";
 
-// Must match pipeline/overrides.py's _OVERRIDABLE_FIELDS exactly -- the three
+// Must match pipeline/overrides.py's _OVERRIDABLE_FIELDS exactly -- the four
 // Field-typed attributes a curator may correct. degree_level is deliberately
 // not here (UG/PG routing stays a classifier decision).
-export const OVERRIDABLE_FIELDS = ["deadline", "programs", "constituent_college"];
+export const OVERRIDABLE_FIELDS = ["deadline", "programs", "constituent_college", "admissions_open"];
 
 export async function fetchOverride(chunkId) {
   const snap = await getDoc(doc(db, "overrides", chunkId));

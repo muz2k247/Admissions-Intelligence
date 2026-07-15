@@ -33,6 +33,24 @@ export function ExternalLinkIcon(props) {
   );
 }
 
+export function CheckCircleIcon(props) {
+  return (
+    <svg {...base} {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="m8.5 12.5 2.5 2.5 5-5" />
+    </svg>
+  );
+}
+
+export function XCircleIcon(props) {
+  return (
+    <svg {...base} {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="m9.5 9.5 5 5M14.5 9.5l-5 5" />
+    </svg>
+  );
+}
+
 export function MenuIcon(props) {
   return (
     <svg {...base} {...props}>

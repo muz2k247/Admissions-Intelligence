@@ -48,7 +48,7 @@ _MAX_PAGES = 100
 # typed attributes the field-extractor produces; degree_level (a DegreeLevel,
 # not a Field) is deliberately not overridable here -- UG/PG routing stays a
 # classifier decision (CLAUDE.md hard rule 3).
-_OVERRIDABLE_FIELDS = ("deadline", "programs", "constituent_college")
+_OVERRIDABLE_FIELDS = ("deadline", "programs", "constituent_college", "admissions_open")
 
 
 def _load_project_id() -> str | None:
