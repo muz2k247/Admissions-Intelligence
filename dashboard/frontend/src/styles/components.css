@@ -161,32 +161,9 @@
   flex-shrink: 0;
 }
 
-.badge--success {
-  background: var(--color-success-bg);
-  color: var(--color-success);
-}
-
-.badge--warning {
-  background: var(--color-warning-bg);
-  color: var(--color-warning);
-}
-
-.badge--danger {
-  background: var(--color-danger-bg);
-  color: var(--color-danger);
-}
-
 .badge--neutral {
   background: var(--color-neutral-bg);
   color: var(--color-neutral);
-}
-
-/* Curator-verified: a solid (not soft-tinted) fill so a human sign-off reads
- * as categorically distinct from the auto-extraction confidence tiers, not
- * just "the highest tier". */
-.badge--verified {
-  background: var(--color-primary);
-  color: var(--color-primary-fg);
 }
 
 .badge--ug {

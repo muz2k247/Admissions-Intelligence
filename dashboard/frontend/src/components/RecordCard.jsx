@@ -1,4 +1,3 @@
-import ConfidenceBadge from "./ConfidenceBadge";
 import DegreeLevelBadge from "./DegreeLevelBadge";
 import { ExternalLinkIcon } from "./Icons";
 
@@ -12,6 +11,12 @@ function isSafeUrl(url) {
   }
 }
 
+/* Field-level confidence scores are an editorial/admin signal (see the
+ * admin CMS's FieldEditor), not something the public dashboard shows -- a
+ * regular visitor sees the extracted value or nothing, never a confidence
+ * tier. When a field is null, that's communicated by simply showing no
+ * value rather than a "Not stated" badge, so the public UI carries no
+ * confidence-related indicator at all. */
 function FieldRow({ label, field }) {
   const isLabeledList = Array.isArray(field?.value);
   return (
@@ -25,16 +30,26 @@ function FieldRow({ label, field }) {
             </li>
           ))}
         </ul>
+      ) : field?.value != null ? (
+        <span className="record-card__field-value">{field.value}</span>
       ) : (
-        field?.value != null && <span className="record-card__field-value">{field.value}</span>
+        <span className="record-card__field-empty">Not stated</span>
       )}
-      <ConfidenceBadge field={field} />
     </div>
   );
 }
 
+function ProgramsFieldRow({ field }) {
+  const programs = Array.isArray(field?.value) ? field.value : null;
+  return (
+    <FieldRow
+      label="Programs"
+      field={programs && programs.length > 0 ? { value: programs.join(", ") } : { value: null }}
+    />
+  );
+}
+
 export default function RecordCard({ record, institutionName, isAdmittingBody }) {
-  const programs = Array.isArray(record.programs?.value) ? record.programs.value : null;
   const sourceUrlSafe = isSafeUrl(record.source_url);
 
   return (
@@ -50,13 +65,7 @@ export default function RecordCard({ record, institutionName, isAdmittingBody })
       <div className="record-card__fields">
         <FieldRow label="Deadline" field={record.deadline} />
         <FieldRow label="Fee" field={record.fee} />
-        <div className="record-card__field">
-          <span className="record-card__field-label">Programs</span>
-          {programs && programs.length > 0 && (
-            <span className="record-card__field-value">{programs.join(", ")}</span>
-          )}
-          <ConfidenceBadge field={record.programs} />
-        </div>
+        <ProgramsFieldRow field={record.programs} />
         {isAdmittingBody && <FieldRow label="Constituent college" field={record.constituent_college} />}
       </div>
 

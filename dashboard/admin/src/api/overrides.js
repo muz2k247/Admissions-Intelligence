@@ -15,8 +15,10 @@ export async function fetchOverride(chunkId) {
  * stay compatible with pipeline/overrides.py's reader: fields.<name> carries
  * {value, confidence, note} (the reader ignores the audit keys). We always
  * write confidence 1.0 and the exact string note "human-verified" so the
- * public dashboard's ConfidenceBadge can special-case it as a "Verified"
- * badge. `value` may be a string or (for programs) an array of strings. */
+ * admin CMS's FieldEditor can special-case it as a "Verified" chip (the
+ * public dashboard shows neither confidence nor verified status -- see
+ * dashboard/frontend/src/components/RecordCard.jsx). `value` may be a
+ * string or (for programs) an array of strings. */
 export async function saveFieldOverride(chunkId, record, fieldName, value) {
   if (!OVERRIDABLE_FIELDS.includes(fieldName)) {
     throw new Error(`Not an overridable field: ${fieldName}`);

@@ -23,6 +23,25 @@ function displayValue(value) {
   return String(value);
 }
 
+/* Confidence is an editorial signal for curators deciding whether a field
+ * needs a correction -- it's deliberately not shown on the public dashboard
+ * (see dashboard/frontend/src/components/RecordCard.jsx), so this is its
+ * only UI surface. Not stated gets its own neutral chip rather than being
+ * lumped into "low confidence" -- those are different situations for a
+ * curator (nothing extracted vs. an unreliable extraction). Mirrors
+ * displayValue's null/empty-array check above so the chip and the value
+ * text never disagree about whether something was extracted. */
+function confidenceChip(published) {
+  const { value, confidence } = published;
+  const isNotStated = value == null || (Array.isArray(value) && value.length === 0);
+  if (isNotStated || typeof confidence !== "number") {
+    return { className: "chip--confidence-none", label: "Not stated" };
+  }
+  if (confidence >= 0.8) return { className: "chip--confidence-high", label: `High confidence (${Math.round(confidence * 100)}%)` };
+  if (confidence >= 0.5) return { className: "chip--confidence-medium", label: `Medium confidence (${Math.round(confidence * 100)}%)` };
+  return { className: "chip--confidence-low", label: `Low confidence (${Math.round(confidence * 100)}%)` };
+}
+
 /* Pre-fill text for the editor input. A multi-deadline (array of objects)
  * can't be round-tripped through a single text box, so it starts blank -- the
  * curator types the single corrected value they want. */
@@ -48,6 +67,7 @@ function FieldEditor({ record, fieldName }) {
 
   const effectiveValue = savedValue !== null ? savedValue : published.value;
   const isVerified = savedValue !== null || published.note === "human-verified";
+  const chip = isVerified ? null : confidenceChip(published);
 
   async function handleSave() {
     setStatus("saving");
@@ -75,7 +95,11 @@ function FieldEditor({ record, fieldName }) {
     <div className="field">
       <div className="field__head">
         <span className="field__label">{FIELD_LABELS[fieldName]}</span>
-        {isVerified && <span className="chip chip--verified">✔ Verified</span>}
+        {isVerified ? (
+          <span className="chip chip--verified">✔ Verified</span>
+        ) : (
+          <span className={`chip ${chip.className}`}>{chip.label}</span>
+        )}
       </div>
       <div className="field__value">{displayValue(effectiveValue)}</div>
       {fieldName === "constituent_college" && (

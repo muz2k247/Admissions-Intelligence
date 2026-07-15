@@ -10,6 +10,14 @@
   --err: #b91c1c;
   --verified-bg: #dcfce7;
   --verified-text: #15803d;
+  --confidence-high-bg: #dcfce7;
+  --confidence-high-text: #15803d;
+  --confidence-medium-bg: #fef3c7;
+  --confidence-medium-text: #92400e;
+  --confidence-low-bg: #fee2e2;
+  --confidence-low-text: #b91c1c;
+  --confidence-none-bg: #eceff2;
+  --confidence-none-text: #4b5563;
   --radius: 10px;
   font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
 }
@@ -108,6 +116,10 @@ body {
   font-weight: 600;
 }
 .chip--verified { background: var(--verified-bg); color: var(--verified-text); }
+.chip--confidence-high { background: var(--confidence-high-bg); color: var(--confidence-high-text); }
+.chip--confidence-medium { background: var(--confidence-medium-bg); color: var(--confidence-medium-text); }
+.chip--confidence-low { background: var(--confidence-low-bg); color: var(--confidence-low-text); }
+.chip--confidence-none { background: var(--confidence-none-bg); color: var(--confidence-none-text); }
 
 .editor { display: grid; gap: 0.5rem; margin-top: 0.25rem; }
 .editor__actions { display: flex; gap: 0.5rem; }
@@ -134,5 +146,13 @@ body {
     --muted: #9aa4ae;
     --verified-bg: #14311f;
     --verified-text: #4ade80;
+    --confidence-high-bg: #14311f;
+    --confidence-high-text: #4ade80;
+    --confidence-medium-bg: #3a2c0f;
+    --confidence-medium-text: #fbbf24;
+    --confidence-low-bg: #3a1414;
+    --confidence-low-text: #f87171;
+    --confidence-none-bg: #262b30;
+    --confidence-none-text: #9aa4ae;
   }
 }

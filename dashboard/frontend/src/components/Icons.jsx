@@ -13,22 +13,6 @@ const base = {
   focusable: "false",
 };
 
-export function CheckIcon(props) {
-  return (
-    <svg {...base} {...props}>
-      <path d="M20 6 9 17l-5-5" />
-    </svg>
-  );
-}
-
-export function DashIcon(props) {
-  return (
-    <svg {...base} {...props}>
-      <path d="M5 12h14" />
-    </svg>
-  );
-}
-
 export function AlertIcon(props) {
   return (
     <svg {...base} {...props}>
