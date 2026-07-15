@@ -237,6 +237,74 @@ class TestExtractDeadline:
 
 
 # ---------------------------------------------------------------------------
+# fields.py — extract_deadline: plausibility validation (extraction/normalize.py
+# validate_deadline_value integration). An implausible year (typo, hallucination,
+# stray unrelated date) must null the whole field with a note, not be extracted
+# as if it were trustworthy -- see extraction/fields.py's use of
+# validate_deadline_value in both the single-match and multi-label branches.
+# ---------------------------------------------------------------------------
+
+class TestExtractDeadlinePlausibilityValidation:
+    def test_implausibly_old_year_nulls_the_field(self):
+        text = "Application deadline: 10 August 1998 for all programs."
+        f = extract_deadline(text)
+        assert f.value is None
+        assert f.confidence is None
+        assert f.note is not None
+        assert "implausible" in f.note.lower()
+
+    def test_implausibly_future_year_nulls_the_field(self):
+        text = "Application deadline: 10 August 2099 for all programs."
+        f = extract_deadline(text)
+        assert f.value is None
+        assert f.confidence is None
+        assert f.note is not None
+        assert "implausible" in f.note.lower()
+
+    def test_valid_near_term_deadline_still_extracts_normally(self):
+        # Regression check: the plausibility check must not break the
+        # existing happy path for a normal near-future deadline.
+        text = "Application deadline: 10 August 2026 for all programs."
+        f = extract_deadline(text)
+        assert f.value is not None
+        assert "2026" in f.value or "August" in f.value
+        assert f.confidence == 0.85
+        assert f.note is None
+
+    def test_one_implausible_date_among_two_labeled_candidates_nulls_whole_field(self):
+        # A genuine multi-label case (two distinct tracks/programs) where one
+        # of the two dates is implausible -- the whole field must null, not
+        # just drop the bad entry and keep the other as a single value.
+        text = (
+            r"NUST Entry Test (Series-4) Application Form" "\n"
+            r"Last Date: 18 Jun 2026" "\n"
+            r"ACT/SAT Basis" "\n"
+            r"Application Form" "\n"
+            r"Last Date: 25 Jul 1998"
+        )
+        f = extract_deadline(text)
+        assert f.value is None
+        assert f.confidence is None
+        assert f.note is not None
+        assert "implausible" in f.note.lower()
+
+    def test_both_plausible_labeled_candidates_still_resolve_to_list(self):
+        # Regression check: two plausible distinct dates must still resolve
+        # to the labeled list, not be affected by the new validation step.
+        text = (
+            r"NUST Entry Test (Series-4) Application Form" "\n"
+            r"Last Date: 18 Jun 2026" "\n"
+            r"ACT/SAT Basis" "\n"
+            r"Application Form" "\n"
+            r"Last Date: 25 Jul 2026"
+        )
+        f = extract_deadline(text)
+        assert isinstance(f.value, list)
+        assert len(f.value) == 2
+        assert f.confidence == 0.75
+
+
+# ---------------------------------------------------------------------------
 # fields.py — extract_deadline: primary/secondary keyword
 # tiering (fixes false conflicts between the real application deadline
 # and an unrelated same-page deadline, without suppressing genuine

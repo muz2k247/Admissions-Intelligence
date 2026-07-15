@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import re
 
+from extraction.normalize import normalize_date_string, validate_deadline_value
 from extraction.schema import Field, NULL_FIELD
 
 _WINDOW = 80  # characters searched after a keyword for a value pattern
@@ -42,40 +43,7 @@ _DATE_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
-_MONTHS = {
-    "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
-    "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
-}
-
-_ISO_DATE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})")
-_DMY_NAMED = re.compile(
-    r"^(\d{1,2})(?:st|nd|rd|th)?[\s\-/]+([A-Za-z]+)[\s\-/,]+(\d{2,4})$",
-    re.IGNORECASE,
-)
-
-
-def _normalize_date(raw: str) -> str:
-    """Canonicalize a matched date string to YYYY-MM-DD when possible, so two
-    different spellings of the same day ("15 July 2026", "2026-07-15") are
-    recognized as one value and not mistaken for a conflict. Anything that
-    doesn't parse cleanly falls back to its lowercased/stripped form — an
-    honest "can't canonicalize" rather than a guess."""
-    s = raw.strip()
-    m = _ISO_DATE.match(s)
-    if m:
-        return f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
-    m = _DMY_NAMED.match(s)
-    if m:
-        month = _MONTHS.get(m.group(2).lower()[:3])
-        if month:
-            day = int(m.group(1))
-            year = m.group(3)
-            if len(year) == 2:
-                year = f"20{year}"
-            return f"{year}-{month:02d}-{day:02d}"
-    return s.lower()
-
-
+_normalize_date = normalize_date_string  # local alias, kept for call-site brevity below
 
 
 _PROGRAM_TOKENS = [
@@ -173,6 +141,9 @@ def extract_deadline(text: str) -> Field:
         return NULL_FIELD
     distinct = {_normalize_date(v) for v, _ in matches}
     if len(distinct) == 1:
+        normalized = next(iter(distinct))
+        if not validate_deadline_value(normalized):
+            return Field(value=None, confidence=None, note="implausible deadline date — left null rather than guessed")
         confidence = 0.95 if len(matches) > 1 else 0.85
         return Field(value=matches[0][0], confidence=confidence)
 
@@ -189,6 +160,13 @@ def extract_deadline(text: str) -> Field:
     for value, idx in matches:
         norm = _normalize_date(value)
         by_date.setdefault(norm, (value, idx))
+    # One implausible date among several candidates means we can't trust the
+    # rest of the extraction either -- null the whole field rather than
+    # silently dropping just the bad entry (same reasoning as the
+    # conflicting-candidates null below: partial confidence in one part of a
+    # multi-part answer isn't confidence in the parts that passed).
+    if not all(validate_deadline_value(norm) for norm in by_date):
+        return Field(value=None, confidence=None, note="implausible deadline date among candidates — left null rather than guessed")
     labeled = []
     if len(by_date) <= _MAX_LABELED_CANDIDATES:
         # Sorted by position, each label's lookback is floored at the

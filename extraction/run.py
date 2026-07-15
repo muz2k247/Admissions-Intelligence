@@ -27,7 +27,36 @@ from extraction.chunker import chunk_scraped_record
 from extraction.classify import load_classifier_results
 from extraction.fields import extract_constituent_college, extract_deadline, extract_programs
 from extraction.llm_fields import load_llm_field_results
-from extraction.schema import NULL_FIELD, DegreeLevel, ExtractedRecord
+from extraction.normalize import normalize_date_string, validate_deadline_value
+from extraction.schema import NULL_FIELD, DegreeLevel, Field, ExtractedRecord
+
+
+def _validate_llm_deadline_field(field: Field) -> Field:
+    """Applies the same deadline-plausibility bar extract_deadline enforces
+    internally on the regex path (extraction/fields.py) to an LLM-sourced
+    deadline Field -- this is the LLM path's only date-sanity check, since
+    the field-extractor subagent's contract has no plausibility rule of its
+    own. Not applied to regex-sourced fields: extract_deadline already
+    validates (and nulls) internally before returning, using its own
+    normalized comparison -- re-checking the *raw* value it returns here
+    would compare the wrong representation and reject dates that already
+    passed validation (e.g. "15 July 2026", stored as-is for display).
+
+    A labeled multi-deadline list is rejected as a whole if any entry is
+    implausible (see extract_deadline for the same reasoning)."""
+    if field.is_null:
+        return field
+    if isinstance(field.value, list):
+        all_valid = bool(field.value) and all(
+            isinstance(entry, dict) and isinstance(entry.get("date"), str)
+            and validate_deadline_value(normalize_date_string(entry["date"]))
+            for entry in field.value
+        )
+        if all_valid:
+            return field
+    elif isinstance(field.value, str) and validate_deadline_value(normalize_date_string(field.value)):
+        return field
+    return Field(value=None, confidence=None, note="implausible deadline date — left null rather than guessed")
 
 DEFAULT_CHUNK_OUT = Path(".tmp") / "chunks" / "chunks.json"
 DEFAULT_EXTRACT_OUT = Path(".tmp") / "extracted"
@@ -128,7 +157,7 @@ def build_extracted_records(
             chunk_llm_fields = llm_fields.get(chunk.id) if llm_fields is not None else None
             if chunk_llm_fields is not None:
                 constituent_college = chunk_llm_fields.get("constituent_college", NULL_FIELD)
-                deadline = chunk_llm_fields.get("deadline", NULL_FIELD)
+                deadline = _validate_llm_deadline_field(chunk_llm_fields.get("deadline", NULL_FIELD))
                 programs = chunk_llm_fields.get("programs", NULL_FIELD)
                 if stats is not None:
                     stats["llm_chunks"] += 1
