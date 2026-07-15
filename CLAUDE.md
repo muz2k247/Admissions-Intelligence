@@ -134,6 +134,8 @@ The dashboard must work flawlessly on both desktop and mobile — not desktop-fi
 
 The dashboard's default view is Undergraduate-only (no PDF export — dropped as unnecessary scope). Ambiguous records are reachable only via an explicit opt-in filter for manual review, never blended into the default view alongside Undergraduate.
 
+**Field-level confidence is not shown on the public dashboard** (2026-07-15) — a visitor sees the extracted value or "Not stated," never a confidence tier or the "Verified" curator badge. This is a UI decision, not a data-model one: hard rule 2 (field-level confidence) still applies to every record everywhere, and `records.json` itself is still fetchable (the public dashboard is 100% static with no backend/auth per Phase E — there is no way to truly restrict the JSON, only to not render the signal). Confidence display lives instead in the admin CMS (`dashboard/admin/src/components/RecordReviewRow.jsx`), where it's an editorial signal for curators deciding whether to correct a field. Don't reintroduce a public-facing confidence badge without re-confirming this decision.
+
 ## Commit conventions
 Commit after each chunk of work is functionally complete and passes the code-reviewer/qa loop (see Subagents' "Proceed in chunks" rule above) — a phase below is usually made of several such chunks, each gets its own commit rather than one commit at the end of the whole phase. Phases for this stage of the project:
 - Phase A: institution registry (`config/institutions.yaml`, `docs/institution_registry.md`)
