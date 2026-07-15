@@ -162,6 +162,25 @@ body {
 .queue-item__flagged { margin: 0; font-size: 0.9rem; }
 .queue-item__actions { display: flex; gap: 0.5rem; }
 
+/* --- institutions tab --- */
+.institution-row__sources { list-style: none; padding: 0; margin: 0 0 0.75rem; display: grid; gap: 0.35rem; }
+.institution-row__sources a { color: var(--primary); word-break: break-all; }
+
+.institution-form { display: grid; gap: 0.9rem; margin-top: 0.75rem; }
+.institution-form__id { margin: -0.5rem 0 0; font-size: 0.85rem; }
+.institution-form__sources { display: grid; gap: 0.6rem; }
+.institution-form__actions { display: flex; gap: 0.5rem; }
+
+.source-row {
+  display: grid;
+  grid-template-columns: 1fr 2fr auto auto auto;
+  gap: 0.4rem;
+  align-items: center;
+}
+@media (max-width: 640px) {
+  .source-row { grid-template-columns: 1fr; }
+}
+
 /* --- review-gate settings panel --- */
 .settings-panel { display: grid; gap: 0.9rem; margin-top: 1rem; max-width: 480px; }
 .settings-panel h2 { margin: 0; font-size: 1.1rem; }

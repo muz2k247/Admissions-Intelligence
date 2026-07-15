@@ -287,6 +287,28 @@ class TestStage5Publish:
         assert giki["name"]
         assert giki["campuses"] == []  # single-URL institution, no campus split
 
+    def test_institutions_json_includes_full_sources_for_admin_cms(self, tmp_path):
+        # Phase R: the admin CMS's Institutions tab reads this same
+        # published file to show/edit an institution's current source
+        # URLs -- `sources` must carry campus/url/format/render per entry,
+        # not just the `campuses` name list the public dropdown uses.
+        extracted_dir = tmp_path / "extracted"
+        publish_dir = tmp_path / "publish"
+        _write_extracted_record(extracted_dir, "giki.json")
+
+        rc = run_full.stage_5_publish(extracted_dir, publish_dir)
+
+        assert rc == 0
+        published = json.loads((publish_dir / "institutions.json").read_text(encoding="utf-8"))
+        giki = next(i for i in published if i["id"] == "giki")
+        assert len(giki["sources"]) == 1
+        assert giki["sources"][0]["url"].startswith("https://")
+        assert giki["sources"][0]["format"] in ("html", "html+pdf")
+        assert giki["sources"][0]["render"] in ("static", "js")
+
+        uet = next(i for i in published if i["id"] == "uet")
+        assert len(uet["sources"]) == len(uet["campuses"])  # one source per listed campus
+
     def test_multi_campus_institution_lists_campuses(self, tmp_path):
         extracted_dir = tmp_path / "extracted"
         publish_dir = tmp_path / "publish"
@@ -465,6 +487,7 @@ class TestStage5PublishGaps:
                 "ug_pg_mixed": False,
                 "campuses": [],
                 "enabled": True,
+                "sources": [],
             }
         ]
 

@@ -295,6 +295,15 @@ def stage_4_build(scraped_dir: Path, classified_path: Path, out_dir: Path, llm_e
 
 
 def _institutions_payload() -> list[dict]:
+    """Build institutions.json. `sources` (Phase R) carries each source's
+    full campus/url/format/render -- not just the `campuses` name list the
+    public dashboard's filter dropdown actually uses -- because the admin
+    CMS's Institutions tab reads this SAME published file (same
+    cross-origin-static-fetch pattern as records.json/needs_review.json) to
+    show and edit an institution's current source URLs. Source URLs are
+    public university admissions pages, not sensitive, so there's no reason
+    to withhold them from institutions.json the way records.json's
+    confidence scores are withheld from the public-facing UI."""
     institutions = load_merged_institutions()
     return [
         {
@@ -304,6 +313,10 @@ def _institutions_payload() -> list[dict]:
             "ug_pg_mixed": inst.ug_pg_mixed,
             "campuses": [s.campus for s in inst.sources if s.campus is not None],
             "enabled": inst.enabled,
+            "sources": [
+                {"campus": s.campus, "url": s.url, "format": s.format, "render": s.render}
+                for s in inst.sources
+            ],
         }
         for inst in institutions
     ]
