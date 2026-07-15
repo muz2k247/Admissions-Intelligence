@@ -430,9 +430,10 @@ class TestStage5PublishGaps:
 
         captured = {}
 
-        def fake_stage_5_publish(extracted, publish):
+        def fake_stage_5_publish(extracted, publish, allow_coverage_drop=False):
             captured["extracted"] = extracted
             captured["publish"] = publish
+            captured["allow_coverage_drop"] = allow_coverage_drop
             return 0
 
         monkeypatch.setattr(run_full, "stage_5_publish", fake_stage_5_publish)

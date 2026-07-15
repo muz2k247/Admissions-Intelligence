@@ -35,6 +35,35 @@ DEFAULT_CHUNKS_OUT = Path(".tmp") / "chunks" / "chunks.json"
 DEFAULT_EXTRACTED_OUT = Path(".tmp") / "extracted"
 DEFAULT_PUBLISH_DIR = Path("dashboard") / "frontend" / "public" / "data"
 
+# fee is excluded here even though the schema still carries it today: it's
+# already scoped for removal (fee was never a reliable signal) and a metric
+# that regresses the moment that removal ships would be a false alarm.
+_COVERAGE_FIELDS = ("deadline", "programs", "constituent_college")
+_COVERAGE_DROP_THRESHOLD = 0.5  # refuse to publish if coverage falls below this fraction of the last published run
+
+
+def _institution_count(records: list[ExtractedRecord]) -> int:
+    """Distinct institutions represented in a record set. Field coverage
+    alone can't tell "extraction quality regressed" apart from "most
+    institutions failed to scrape but the few that succeeded extracted
+    cleanly" -- a mass scrape outage can leave fill-rate unchanged or even
+    higher while the actual institution count collapses. This is checked
+    alongside _field_coverage, not instead of it."""
+    return len({r.institution_id for r in records})
+
+
+def _field_coverage(records: list[ExtractedRecord]) -> float | None:
+    """Fraction of (record, field) pairs across _COVERAGE_FIELDS that carry
+    a non-null value. None when there is nothing to measure (empty input),
+    so callers can distinguish "no data" from "0% coverage"."""
+    if not records:
+        return None
+    total = len(records) * len(_COVERAGE_FIELDS)
+    non_null = sum(
+        1 for r in records for name in _COVERAGE_FIELDS if getattr(r, name).value is not None
+    )
+    return non_null / total
+
 
 def _load_scraped_records(scraped_dir: Path) -> list[dict]:
     """Load all scraped records from directory, skip malformed ones."""
@@ -216,16 +245,31 @@ def stage_4_build(scraped_dir: Path, classified_path: Path, out_dir: Path, llm_e
             print(f"WARN: Unreadable field-extractor output {llm_extracted_path}: {exc} -- falling back to regex extraction for all chunks")
             llm_fields = None
 
-    built, skipped, excluded_postgraduate = build_extracted_records(records, degree_levels, llm_fields)
+    stats: dict[str, int] = {}
+    built, skipped, excluded_postgraduate = build_extracted_records(records, degree_levels, llm_fields, stats=stats)
     written = write_extracted_records(built, out_dir)
 
     print(
-        f"Stage 4 summary: {written} record(s) extracted, {skipped} skipped, "
+        f"Stage 4 summary: {written} record(s) extracted ({stats['llm_chunks']} via LLM, "
+        f"{stats['regex_chunks']} via regex fallback), {skipped} skipped, "
         f"{excluded_postgraduate} postgraduate record(s) excluded (undergrad-only scope)"
     )
     if written == 0:
         print("[WARN] No records extracted.")
         return 1
+
+    # llm_extracted_path being set means the field-extractor step ran and
+    # produced a readable file (see the WARN branch above for the unreadable
+    # case) -- but the file loading cleanly doesn't mean it covered anything.
+    # A CI job with `continue-on-error: true` on that step can look green
+    # while every chunk silently fell back to regex, which is exactly the
+    # kind of degraded-but-successful run this pipeline needs to surface
+    # instead of publishing quietly.
+    if llm_extracted_path is not None and llm_fields is not None and stats["llm_chunks"] == 0 and stats["regex_chunks"] > 0:
+        print(
+            "[WARN] LLM field extraction produced 0 usable chunks; every record used the "
+            "regex fallback this run -- check Gemini API health (key, quota, model)."
+        )
 
     return 0
 
@@ -271,7 +315,7 @@ def _write_json_files_atomic(files: dict[Path, object]) -> None:
         os.replace(tmp_path, path)
 
 
-def stage_5_publish(extracted_dir: Path, publish_dir: Path) -> int:
+def stage_5_publish(extracted_dir: Path, publish_dir: Path, allow_coverage_drop: bool = False) -> int:
     """Stage 5: Build the static data/*.json artifacts the dashboard fetches
     directly (no backend, no database).
 
@@ -288,11 +332,28 @@ def stage_5_publish(extracted_dir: Path, publish_dir: Path) -> int:
     Firestore, returning {} on any failure so a Firestore problem degrades
     to publishing the pipeline-extracted values rather than failing.
 
+    Before writing, two signals for the new record set are compared against
+    the currently-published records.json: field coverage (_field_coverage)
+    and distinct institution count (_institution_count) -- coverage alone
+    can't tell "extraction quality regressed" apart from "most institutions
+    failed to scrape but the few survivors extracted cleanly," since the
+    latter can leave fill-rate flat or even higher while the actual data
+    volume collapses. A zero-record run is already refused above the
+    empty-records check; these two catch quieter failure modes: extraction
+    running "successfully" (e.g. a best-effort Gemini step degrading to the
+    regex fallback for every chunk) but yielding far less/narrower real data
+    than the run it would replace. Refusing to publish keeps the previous,
+    better data live instead of silently degrading the public dashboard.
+    Pass allow_coverage_drop=True to publish anyway (e.g. a genuine, expected
+    drop like admissions season ending, or an institution intentionally
+    disabled in config).
+
     Returns:
         0 if publish succeeds.
         1 if extracted_dir is unreadable/missing, contains zero records,
           any record fails to load, config/institutions.yaml is unreadable,
-          or writing the published files fails.
+          field coverage regressed more than _COVERAGE_DROP_THRESHOLD without
+          allow_coverage_drop, or writing the published files fails.
     """
     print(f"\n{'='*60}")
     print("STAGE 5: BUILD & PUBLISH STATIC DATA")
@@ -327,6 +388,63 @@ def stage_5_publish(extracted_dir: Path, publish_dir: Path) -> int:
         records = [merge_overrides(r, overrides) for r in records]
         overridden = sum(1 for r in records if r.chunk_id in overrides)
         print(f"Applied curator overrides to {overridden} of {len(records)} record(s).")
+
+    new_coverage = _field_coverage(records)
+    new_institution_count = _institution_count(records)
+    previous_records_path = publish_dir / "records.json"
+    previous_coverage: float | None = None
+    previous_institution_count: int | None = None
+    if previous_records_path.is_file():
+        try:
+            previous_raw = json.loads(previous_records_path.read_text(encoding="utf-8"))
+            previous_records = [ExtractedRecord.from_dict(d) for d in previous_raw]
+            previous_coverage = _field_coverage(previous_records)
+            previous_institution_count = _institution_count(previous_records)
+        except Exception:
+            # A malformed/unreadable previous file means there's nothing
+            # trustworthy to compare against -- not a reason to fail stage 5,
+            # which already has its own strict validation for the *new*
+            # records above. Deliberately broad: the failure modes here are
+            # open-ended (bad JSON, wrong shape, unexpected None entries),
+            # and every one of them should degrade to "skip the guard", not
+            # crash a publish that is otherwise valid.
+            previous_coverage = None
+            previous_institution_count = None
+
+    coverage_dropped = (
+        previous_coverage is not None
+        and previous_coverage > 0
+        and new_coverage is not None
+        and new_coverage < previous_coverage * _COVERAGE_DROP_THRESHOLD
+    )
+    institutions_dropped = (
+        previous_institution_count is not None
+        and previous_institution_count > 0
+        and new_institution_count < previous_institution_count * _COVERAGE_DROP_THRESHOLD
+    )
+
+    if (coverage_dropped or institutions_dropped) and not allow_coverage_drop:
+        if institutions_dropped:
+            print(
+                f"ERROR: Institution count dropped from {previous_institution_count} to "
+                f"{new_institution_count} (more than {int((1 - _COVERAGE_DROP_THRESHOLD) * 100)}% "
+                "relative drop) -- refusing to publish a likely mass-scrape-failure run. "
+                "Previous data retained.",
+                file=sys.stderr,
+            )
+        if coverage_dropped:
+            print(
+                f"ERROR: Field coverage dropped from {previous_coverage:.0%} to {new_coverage:.0%} "
+                f"(more than {int((1 - _COVERAGE_DROP_THRESHOLD) * 100)}% relative drop) -- refusing to "
+                "publish a likely-degraded extraction run. Previous data retained.",
+                file=sys.stderr,
+            )
+        print(
+            "If this drop is genuine (e.g. admissions season ending, or an institution was "
+            "intentionally disabled), re-run with allow_coverage_drop=True / --allow-coverage-drop.",
+            file=sys.stderr,
+        )
+        return 1
 
     try:
         institutions_payload = _institutions_payload()
@@ -375,6 +493,10 @@ def main() -> None:
         "--publish-dir", type=Path, default=DEFAULT_PUBLISH_DIR,
         help="Output dir for published data/*.json (served as static dashboard data).",
     )
+    stage5_p.add_argument(
+        "--allow-coverage-drop", action="store_true",
+        help="Publish even if field coverage dropped more than the regression threshold vs the currently-published data.",
+    )
 
     args = parser.parse_args()
 
@@ -387,7 +509,7 @@ def main() -> None:
     elif args.stage == "stage4":
         sys.exit(stage_4_build(args.out_scraped, args.classified, args.out, args.llm_extracted))
     elif args.stage == "stage5":
-        sys.exit(stage_5_publish(args.extracted, args.publish_dir))
+        sys.exit(stage_5_publish(args.extracted, args.publish_dir, args.allow_coverage_drop))
 
 
 if __name__ == "__main__":

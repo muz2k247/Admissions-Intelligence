@@ -47,10 +47,21 @@ jobs:
         run: python pipeline/gemini_classify.py --chunks .tmp/chunks/chunks.json --out .tmp/chunks/classified.json
 
       - name: 'Stage 3b: Extract fields via Gemini (best-effort)'
+        id: gemini_extract
         continue-on-error: true
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python pipeline/gemini_extract.py --chunks .tmp/chunks/chunks.json --out .tmp/chunks/llm_fields.json
+
+      - name: Report Gemini extraction health
+        if: always()
+        run: |
+          if [ "${{ steps.gemini_extract.outcome }}" != "success" ]; then
+            echo "### :warning: Gemini field extraction failed this run" >> "$GITHUB_STEP_SUMMARY"
+            echo "Stage 4 will fall back to the regex extractor for every chunk. Check the GEMINI_API_KEY secret and Gemini API quota/status." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### Gemini field extraction: OK" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: 'Stage 4: Extraction build'
         run: python -m pipeline.run_full stage4 --out-scraped .tmp/scraped --classified .tmp/chunks/classified.json --llm-extracted .tmp/chunks/llm_fields.json --out .tmp/extracted

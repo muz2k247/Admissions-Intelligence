@@ -68,7 +68,10 @@ def run_chunk(scraped_dir: Path, out_path: Path) -> int:
 
 
 def build_extracted_records(
-    records: list[dict], degree_levels: dict, llm_fields: dict[str, dict] | None = None
+    records: list[dict],
+    degree_levels: dict,
+    llm_fields: dict[str, dict] | None = None,
+    stats: dict[str, int] | None = None,
 ) -> tuple[list[tuple[str, ExtractedRecord]], int, int]:
     """Merge scraped records with classifier output into ExtractedRecords.
 
@@ -91,10 +94,18 @@ def build_extracted_records(
     specific chunk has no entry in it (the subagent skipped/omitted it), that
     chunk falls back to the regex extractor — extraction/fields.py stays the
     permanent zero-cost fallback so the pipeline degrades gracefully instead
-    of failing outright if the LLM step is unavailable."""
+    of failing outright if the LLM step is unavailable.
+
+    stats, when given, is filled in with "llm_chunks" and "regex_chunks"
+    counts so a caller can tell a healthy LLM extraction step apart from one
+    that silently produced nothing (both look identical from the exit code
+    alone, since the regex fallback still yields a normal-looking run)."""
     built: list[tuple[str, ExtractedRecord]] = []
     skipped = 0
     excluded_postgraduate = 0
+    if stats is not None:
+        stats.setdefault("llm_chunks", 0)
+        stats.setdefault("regex_chunks", 0)
     for record in records:
         if record.get("error"):
             skipped += 1
@@ -120,11 +131,15 @@ def build_extracted_records(
                 deadline = chunk_llm_fields.get("deadline", NULL_FIELD)
                 fee = chunk_llm_fields.get("fee", NULL_FIELD)
                 programs = chunk_llm_fields.get("programs", NULL_FIELD)
+                if stats is not None:
+                    stats["llm_chunks"] += 1
             else:
                 constituent_college = extract_constituent_college(chunk.raw_text)
                 deadline = extract_deadline(chunk.raw_text)
                 fee = extract_fee(chunk.raw_text)
                 programs = extract_programs(chunk.raw_text)
+                if stats is not None:
+                    stats["regex_chunks"] += 1
 
             extracted = ExtractedRecord(
                 institution_id=chunk.institution_id,
@@ -181,11 +196,15 @@ def run_build(scraped_dir: Path, classified_path: Path, out_dir: Path, llm_extra
             print(f"WARN  unreadable field-extractor output {llm_extracted_path}: {exc} -- falling back to regex extraction for all chunks")
             llm_fields = None
 
-    built, _, excluded_postgraduate = build_extracted_records(records, degree_levels, llm_fields)
+    stats: dict[str, int] = {}
+    built, _, excluded_postgraduate = build_extracted_records(records, degree_levels, llm_fields, stats=stats)
     written = write_extracted_records(built, out_dir)
 
     print(f"Wrote {written} extracted record(s) -> {out_dir}")
     print(f"Excluded {excluded_postgraduate} postgraduate record(s) (undergrad-only scope)")
+    print(f"Field source: {stats['llm_chunks']} chunk(s) via LLM, {stats['regex_chunks']} via regex fallback")
+    if llm_extracted_path is not None and stats["llm_chunks"] == 0 and stats["regex_chunks"] > 0:
+        print("WARN  LLM field extraction produced 0 usable chunks; every record used the regex fallback -- check the field-extractor output.")
     return 0
 
 
