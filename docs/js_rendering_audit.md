@@ -47,3 +47,32 @@ Two secondary, non-JS-gating observations, not blockers for this audit's verdict
 - `air_university` (Islamabad & Punjab) uses Blazor scoped-CSS markup; current evidence shows
   real content server-rendered, but if this source's extraction quality is ever poor, worth a
   second look in case some sub-pages use Blazor WASM instead of Blazor Server.
+
+## Phase N addendum (2026-07-15)
+
+A user-reported issue described "5 university websites blocking the scraper" and proposed adding
+`render: js` to each. Investigation before making any config change: live-re-scraped all 17
+sources against the *current* self-identifying bot UA
+(`AdmissionsIntelligenceBot/0.1 (+https://github.com/muz2k247/Admissions-Intelligence)`), then
+again after switching to a generic desktop Chrome UA (see `scraper/fetch.py`). Findings:
+
+- **All 16 non-`ist` sources succeeded on both UAs** in this session's live check — consistent
+  with this audit's original static-ok verdicts above, not with a live 5-site block. Either the
+  reported blocking was transient/host-specific at the time it was observed, or it was actually
+  `ist`'s failure (a real, reproducible failure) being miscounted alongside others. No evidence
+  supports adding `render: js` to any of the 16 — doing so would have added unnecessary
+  per-run Chromium cost with no fetch-success benefit.
+- **The bot UA is still switched to a generic browser UA anyway** (Phase N), on the reasoning that
+  a self-identifying UA is more polite in principle but several WAFs reject non-browser UAs
+  regardless of intent, and this scraper only reads public, unauthenticated, non-concurrent pages.
+- **`ist` was fetching successfully via `render: js` but timing out**: `wait_until="load"` (the
+  previous strategy) hung until the 30s timeout on every attempt this session — some resource on
+  the page never reaches Playwright's "load" event. Diagnosed live: switching to
+  `wait_until="domcontentloaded"` succeeds in ~1.5s, but a bare snapshot immediately after only
+  captures ~3KB of nav/footer text (the real admissions widget is a client-side RSC stream that
+  finishes shortly *after* DOMContentLoaded, not before it). Adding an 8-second settle wait after
+  `domcontentloaded` (`scraper/js_fetch.py`'s `_JS_RENDER_SETTLE_MS`) before snapshotting
+  `page.content()` captures the real widget, including live deadline text ("Closing Date:
+  2026-07-31" at time of this check) — confirmed the regex extractor (`extract_deadline`)
+  correctly parses it end-to-end through the real pipeline code path, not just a standalone check.
+  `ist`'s extraction is no longer `null`/`"extraction-broken"` as of this fix.

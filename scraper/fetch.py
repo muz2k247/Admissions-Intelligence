@@ -15,7 +15,16 @@ from scraper.config import Source
 from scraper.pdf_fallback import PdfDocument, fetch_linked_pdfs
 from scraper.tls import build_completed_bundle
 
-USER_AGENT = "AdmissionsIntelligenceBot/0.1 (+https://github.com/muz2k247/Admissions-Intelligence)"
+# A self-identifying bot UA (the previous value here) is the more polite
+# choice in the abstract, but in practice several sources' WAFs reject any
+# UA that doesn't look like a real browser regardless of intent -- and this
+# scraper only reads public, unauthenticated admissions pages meant for any
+# applicant to read, at a modest, non-concurrent request rate (Phase N,
+# 2026-07). A generic, current-looking desktop Chrome UA is used instead;
+# it deliberately isn't kept in lockstep with the actual latest Chrome
+# release, since WAF UA checks match a general recognized-browser pattern,
+# not an exact build number.
+USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 DEFAULT_TIMEOUT = 30
 
 

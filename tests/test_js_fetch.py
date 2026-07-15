@@ -155,10 +155,23 @@ class TestFetchSourceDispatch:
         mock_js_fetch.assert_called_once()
         assert result.html == "<html>js</html>"
 
-    def test_fetch_source_does_not_import_js_fetch_for_static_sources(self):
+    def test_fetch_source_does_not_import_js_fetch_for_static_sources(self, monkeypatch):
         # A static source must go through requests, never touch scraper.js_fetch
         # at all -- this is what lets environments without Playwright installed
         # still scrape every source that doesn't need it.
+        #
+        # monkeypatch.delitem (not a bare sys.modules.pop) so pytest restores
+        # the popped module back into sys.modules at teardown: other test
+        # files (e.g. tests/test_js_fetch_phase_n.py) import
+        # scraper.js_fetch.fetch_source_js once at collection time and later
+        # patch("scraper.js_fetch.sync_playwright", ...) by name. If this
+        # test's pop is never undone, that patch call re-imports a *fresh*
+        # scraper.js_fetch module object (since sys.modules no longer has it
+        # cached) and patches sync_playwright on that new object -- while the
+        # already-bound fetch_source_js function from those other test files
+        # still points at the *old* module's globals, so the patch silently
+        # never takes effect and the real, unpatched sync_playwright runs
+        # against the live site instead of the mock.
         import sys
 
         source = Source(institution_id="giki", campus=None, url="https://giki.edu.pk", format="html")
@@ -173,7 +186,7 @@ class TestFetchSourceDispatch:
             def get(self, url, timeout=None):
                 return FakeResponse()
 
-        sys.modules.pop("scraper.js_fetch", None)
+        monkeypatch.delitem(sys.modules, "scraper.js_fetch", raising=False)
         result = fetch_source(source, session=FakeSession())
 
         assert result.html == "<html>static</html>"
