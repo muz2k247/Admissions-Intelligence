@@ -1,19 +1,19 @@
 # CLAUDE.md — Admissions Intelligence & Publishing Pipeline
 
 ## What this project is
-A solo-built system that monitors undergraduate admissions across 16 KIPS-target Pakistani institutions (15 distinct admitting portals — see `docs/institution_registry.md`), extracts structured data, and presents it. Cost minimization is a standing constraint: prefer direct APIs, self-hosted scraping, and lighter models over paid SaaS.
+A solo-built system that monitors undergraduate admissions across 16 KIPS-target Pakistani institutions (17 sources — Air University alone splits into two campus portals — see `docs/institution_registry.md`), extracts structured data, and presents it. Cost minimization is a standing constraint: prefer direct APIs, self-hosted scraping, and lighter models over paid SaaS.
 
 ## Current phase scope — read this before building anything
-**In scope right now:** scrape → extract → present (web dashboard). Build only this.
+**In scope right now:** Phase M (see Commit conventions) — making the existing scrape → extract → publish pipeline honest: loud failure instead of silent `continue-on-error`, and a coverage-regression guard so a bad extraction run can't overwrite good published data. Build only this phase; don't jump ahead to N–S.
 
-**Don't build ahead of scope, and don't guess what comes next.** The roadmap beyond this phase isn't fixed here — treat it as unknown rather than filling in assumptions about what future features will be or how they'll work. If a design choice today would only make sense in service of some imagined future feature, that's a sign to stop and confirm scope instead of proceeding.
+**A roadmap (Phases M–S) has been reviewed and approved — see "Commit conventions" below for the list.** It is not unknown, but it also isn't a license to chain through it: **pause between phases** per the standing rule below, and don't build work belonging to a later lettered phase while inside an earlier one. If a design choice today would only make sense in service of a phase that hasn't started yet, stop and confirm before proceeding.
 
 **Keep the data honest regardless.** Every extracted record retains its source URL and per-field confidence score, not because a specific future feature needs them, but because they're cheap to keep now and expensive to reconstruct later if anything downstream ever needs them.
 
 ## Target institutions
 Full list, URLs, formats, and campus structure: `docs/institution_registry.md`. Machine-readable version lives at `config/institutions.yaml` — this is what all scraper/extraction code reads from. **Never hardcode an institution's URL, selector, or campus list directly in code.** If a change requires editing anything other than `config/institutions.yaml`, that's a design smell.
 
-Three structural patterns exist across the 15 sources, and the config schema must represent all three through the *same* shape — not as special cases bolted on later:
+Three structural patterns exist across the 17 sources, and the config schema must represent all three through the *same* shape — not as special cases bolted on later:
 
 - **Single-URL** (GIKI, PIEAS, LUMS, ITU, IST, etc.): one institution, one source, no campus distinction.
 - **Multi-campus** (UET, FAST, COMSATS, Air University, Bahria): one institution, several sources, each tied to a named campus.
@@ -99,7 +99,7 @@ The pipeline and dashboard need essentially no secrets to run locally. Credentia
 7. **Testing:** test fixtures should never contain real secrets; mock any credential-shaped values with fake but valid-format strings.
 
 ## Format handling
-HTML is primary for all 15 sources. PDF fallback is required for Punjab University and UHS/NUMS notices specifically (both post supplementary PDFs — date sheets, merit lists). Build the PDF path as a fallback the HTML scraper calls, not a separate parallel pipeline.
+HTML is primary for all sources. PDF fallback is required for Punjab University and UHS/NUMS notices specifically (both post supplementary PDFs — date sheets, merit lists). Build the PDF path as a fallback the HTML scraper calls, not a separate parallel pipeline.
 
 ## Subagents
 Defined in `.claude/agents/`. Follow the design/build loop for any non-trivial code:
@@ -141,6 +141,22 @@ Commit after each chunk of work is functionally complete and passes the code-rev
 - Phase C: extraction schema + content-classifier integration
 - Phase D: dashboard
 - Phase E: static publish + cron scheduling — dropped Cloud Run + Firestore; `pipeline/run_full.py`'s stage 5 now publishes `dashboard/frontend/public/data/*.json` directly (no backend, no database) for a `/schedule`-scheduled pipeline run to build and deploy on a recurring basis
+- Phase F: git-tracked published data + GitHub Actions deploy (`dashboard/frontend/public/data/*` committed to git; `.github/workflows/deploy.yml` deploys on push)
+- Phase G: discarded — an uncommitted, half-built Firestore dual-write reintroduction with no reader and no roadmap; never shipped, not part of project history
+- Phase H–J: reliability hardening (enable/disable institution toggle, Playwright screenshot verification, JS-rendering audit + config-driven headless rendering, per-PDF chunking, LLM-based field extraction replacing weak regex as primary)
+- Phase K: curator admin CMS (`dashboard/admin`) — Firestore reintroduced **narrowly for the write path only** (field-override corrections merged at publish); public dashboard's read path stays 100% static. See Security & Secrets Management above.
+- Phase L: automated weekly pipeline via Gemini API + GitHub Actions cron (`.github/workflows/pipeline.yml`)
+
+**Approved next roadmap (2026-07-15), each phase paused-and-confirmed before the next starts:**
+- Phase M *(current)*: make pipeline failure loud — replace blanket `continue-on-error` on Gemini extraction with a visible health outcome; add a coverage-regression guard to `stage_5_publish` so a bad run can't overwrite good published data; label regex-fallback fields as low-confidence.
+- Phase N: realistic browser user-agent on both the plain and headless fetch paths; re-triage blocked sources into WAF-block / JS-gated / login-gated by evidence, not blanket `render: js`.
+- Phase O: remove fee collection end-to-end (schema, extraction, overrides, admin CMS, public dashboard, tests, docs) — scope is now University + open UG programmes + deadline.
+- Phase P: validation & normalization layer — parse/normalize deadlines, reject implausible values to null, and introduce "admissions open" as its own classified signal (not derived arithmetically from the deadline).
+- Phase Q: Needs-Review queue — high-confidence open programmes auto-publish; low-confidence ones queue for admin approve/edit/reject, with approvals content-keyed (chunk_id + value hash) so a changed re-scrape re-queues instead of publishing a stale approval.
+- Phase R: admin-managed institutions — Firestore `institutions` collection (with tombstones for deletes) merged over the `config/institutions.yaml` seed at publish time; CMS add-by-name flow (Gemini + web search suggests candidate `.edu.pk` URLs, admin confirms, manual URL entry also available) — never auto-enable an unconfirmed URL.
+- Phase S: admin scheduling control — "Run Now" via GitHub `workflow_dispatch` from the CMS, recurring cadence stored in Firestore and self-gated by a frequent cron tick. No new backend (rejected a Render.com/DB-scheduler alternative as reintroducing the cost Phase E deliberately dropped).
+
+Full context, verified-issue writeup, and the critical architecture review behind M–S live in the plan at the time of approval; treat this list as the durable summary.
 
 Plain, descriptive commit messages tied to the phase (e.g. `feat: config-driven scraper for pilot institutions`) — no need for heavier conventions than that at solo scale.
 
