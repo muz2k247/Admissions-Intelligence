@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
-  "run_id": "29525863583",
+  "run_id": "29526777407",
   "trigger": "workflow_dispatch",
-  "started_at": "2026-07-16T18:54:54.058717+00:00",
+  "started_at": "2026-07-16T19:08:24.447562+00:00",
   "scrape": {
     "attempted": 17,
-    "ok": 10,
-    "failed": 7,
+    "ok": 12,
+    "failed": 5,
     "sources": [
       {
         "institution_id": "uet",
@@ -102,8 +102,8 @@
         "institution_id": "ist",
         "campus": null,
         "url": "https://ist.edu.pk/admission",
-        "ok": false,
-        "error": "fetch failed (headless render): rendered content suspiciously short (34 visible chars) -- the page likely didn't finish client-side rendering within the settle wait",
+        "ok": true,
+        "error": null,
         "pdf_count": 0,
         "pdf_failure_count": 0
       },
@@ -138,8 +138,8 @@
         "institution_id": "nums",
         "campus": null,
         "url": "https://numspak.edu.pk/admissions-details.php",
-        "ok": false,
-        "error": "fetch failed: HTTPSConnectionPool(host='numspak.edu.pk', port=443): Read timed out. (read timeout=30)",
+        "ok": true,
+        "error": null,
         "pdf_count": 0,
         "pdf_failure_count": 0
       },
@@ -164,13 +164,44 @@
     ]
   },
   "chunk": {
-    "chunks": 46,
-    "skipped": 7
+    "chunks": 48,
+    "skipped": 5
   },
-  "finished_at": "2026-07-16T18:57:46.231200+00:00",
-  "status": "failed",
+  "classify": {
+    "chunks_in": 48,
+    "undergraduate": 21,
+    "postgraduate": 15,
+    "ambiguous": 12
+  },
+  "extract_llm": {
+    "chunks_in": 48,
+    "chunks_extracted": 8,
+    "batches_failed": 1
+  },
+  "build": {
+    "records": 33,
+    "llm_chunks": 1,
+    "regex_chunks": 32,
+    "excluded_postgraduate": 15,
+    "skipped": 5,
+    "extraction_mode": "mixed"
+  },
+  "publish": {
+    "decision": "published",
+    "records_published": 11,
+    "queued_for_review": 22,
+    "institutions_published": 16,
+    "overrides_applied": 1,
+    "new_coverage": 0.2828282828282828,
+    "previous_coverage": 0.2828282828282828,
+    "new_institution_count": 11,
+    "previous_institution_count": 11
+  },
+  "finished_at": "2026-07-16T19:11:44.225931+00:00",
+  "status": "published",
   "warnings": [
-    "Run did not reach stage 5 (publish) \u2014 check which stage sections below are present.",
-    "7 of 17 source(s) failed to scrape."
+    "LLM field extraction: 1 batch(es) failed this run.",
+    "Extraction used a mix of LLM and regex-fallback fields this run.",
+    "5 of 17 source(s) failed to scrape."
   ]
 }
