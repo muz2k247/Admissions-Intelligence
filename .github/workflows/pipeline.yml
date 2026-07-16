@@ -28,6 +28,18 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: write
+    # published_sha is the commit the "Commit and push" step actually pushed
+    # (or, on a no-op run, the commit already checked out). The `deploy` job
+    # below passes this to deploy.yml explicitly -- a reusable workflow's
+    # checkout otherwise defaults to the *outer* run's github.sha, which is
+    # frozen at workflow_dispatch time and does NOT advance when this job
+    # pushes a new commit mid-run. Without this, `deploy` silently redeploys
+    # the commit that existed before this run started, one cycle stale --
+    # e.g. needs_review.json missing from the live site the very run it was
+    # first introduced. See Phase T Task 1.4.
+    outputs:
+      published_sha: ${{ steps.publish.outputs.sha }}
+      changed: ${{ steps.publish.outputs.changed }}
     # Backstop against concurrent runs (Phase S): the tick workflow
     # (tick.yml) already checks GitHub's run history before dispatching,
     # but this native concurrency group guarantees it even if a manual
@@ -87,6 +99,7 @@ jobs:
         run: python -m pipeline.run_full stage5 --extracted .tmp/extracted
 
       - name: Commit and push if data changed
+        id: publish
         run: |
           git config user.name "Admissions Intelligence Pipeline"
           git config user.email "pipeline@admissions-intelligence.local"
@@ -103,12 +116,22 @@ jobs:
                   dashboard/frontend/public/data/needs_review.json
           if git diff --cached --quiet; then
             echo "No data changes — skipping push."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             git commit -m "chore: publish pipeline data ($(date -u +%Y-%m-%dT%H:%M:%SZ))"
             git push origin main
+            echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
   deploy:
     needs: pipeline
+    # Skip the deploy entirely on a no-op run (nothing new to publish) rather
+    # than redeploying unchanged content. Phase T Task 4 will revisit this
+    # condition to `always()` once a health.json is published on every run,
+    # including refused/failed ones.
+    if: needs.pipeline.outputs.changed == 'true'
     uses: ./.github/workflows/deploy.yml
+    with:
+      ref: ${{ needs.pipeline.outputs.published_sha }}
     secrets: inherit

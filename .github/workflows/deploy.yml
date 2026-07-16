@@ -25,17 +25,45 @@ on:
     branches: [main]
     paths:
       - "dashboard/frontend/**"
+      # Published data commits (dashboard/frontend/public/data/*.json) are
+      # excluded here: pipeline.yml already deploys them explicitly via the
+      # workflow_call below, passing the exact commit it just published.
+      # Without this exclusion, every pipeline run fires a second, redundant
+      # push-triggered deploy of the same commit -- doubling Firebase CLI
+      # calls and CI minutes for no benefit.
+      - "!dashboard/frontend/public/data/**"
       - "dashboard/admin/**"
       - "firestore.rules"
       - "firebase.json"
       - ".github/workflows/**"
   workflow_call:
+    inputs:
+      ref:
+        description: >
+          Commit SHA to deploy. Reusable callers (pipeline.yml) must pass the
+          commit they just pushed -- checkout's default ref is the *outer*
+          workflow run's github.sha, frozen at trigger time, which does not
+          advance when a job earlier in the same run pushes a new commit.
+          Left empty for the plain `push` trigger, where github.sha is
+          already the correct, current commit.
+        required: false
+        type: string
+
+# Prevents an ordinary push-triggered deploy (e.g. a docs/workflow-file
+# change) from racing a pipeline-triggered (workflow_call) deploy and
+# clobbering it out of order -- both deploy the same Firebase Hosting sites
+# with no other coordination between them.
+concurrency:
+  group: admissions-deploy
+  cancel-in-progress: false
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
 
       - uses: actions/setup-node@v4
         with:
