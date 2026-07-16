@@ -1,0 +1,788 @@
+[
+  {
+    "institution_id": "aku",
+    "campus": "Pakistan (Karachi) \u2014 MBBS",
+    "source_url": "https://www.aku.edu/admissions/mbbs/",
+    "fetched_at": "2026-07-16T10:57:33.082142+00:00",
+    "chunk_id": "aku__pakistan_(karachi)_\u2014_mbbs",
+    "degree_level": {
+      "value": "Undergraduate",
+      "reason": null
+    },
+    "constituent_college": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "deadline": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "programs": {
+      "value": [
+        "MBBS"
+      ],
+      "confidence": 0.6,
+      "note": "keyword-spotted program tokens, not exhaustive"
+    },
+    "admissions_open": {
+      "value": null,
+      "confidence": null,
+      "note": "conflicting open/closed signals found \u2014 left null rather than guessed"
+    },
+    "flagged_fields": [
+      "programs"
+    ],
+    "content_hash": "c3d3fa60c3187cfcde4c2bc3c3598e72a7dfd3b5e2a40cff0f9af7c99cf3f93a"
+  },
+  {
+    "institution_id": "aku",
+    "campus": "Pakistan (Karachi) \u2014 MBBS",
+    "source_url": "https://www.aku.edu/admissions/Documents/admission-information-MBBS.pdf",
+    "fetched_at": "2026-07-16T10:57:33.082142+00:00",
+    "chunk_id": "aku__pakistan_(karachi)_\u2014_mbbs__pdf_documents_admission_information_mbbs_pdf_74696f6872",
+    "degree_level": {
+      "value": "Undergraduate",
+      "reason": null
+    },
+    "constituent_college": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "deadline": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "programs": {
+      "value": [
+        "BE",
+        "MBBS"
+      ],
+      "confidence": 0.6,
+      "note": "keyword-spotted program tokens, not exhaustive"
+    },
+    "admissions_open": {
+      "value": "Open",
+      "confidence": 0.8,
+      "note": null
+    },
+    "flagged_fields": [
+      "programs"
+    ],
+    "content_hash": "11b0c67e7803d5a3f95bd5f5daa11117cc0d2c76211bcfa80084db21b557a04c"
+  },
+  {
+    "institution_id": "bahria",
+    "campus": null,
+    "source_url": "https://www.bahria.edu.pk/Home/AdmissionRoadmap?programType=UnderGraduate",
+    "fetched_at": "2026-07-16T10:57:38.416994+00:00",
+    "chunk_id": "bahria",
+    "degree_level": {
+      "value": "Undergraduate",
+      "reason": null
+    },
+    "constituent_college": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "deadline": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "programs": {
+      "value": [
+        "ADP",
+        "BS"
+      ],
+      "confidence": 0.6,
+      "note": "keyword-spotted program tokens, not exhaustive"
+    },
+    "admissions_open": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "flagged_fields": [
+      "programs"
+    ],
+    "content_hash": "77abf07fdd5bc20a5258c38c1679903019e3372fc02197298f0599ec8afb3804"
+  },
+  {
+    "institution_id": "giki",
+    "campus": null,
+    "source_url": "https://giki.edu.pk/admissions/admissions-undergraduates/",
+    "fetched_at": "2026-07-16T10:54:25.896681+00:00",
+    "chunk_id": "giki",
+    "degree_level": {
+      "value": "Undergraduate",
+      "reason": null
+    },
+    "constituent_college": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "deadline": {
+      "value": "15-June-2026",
+      "confidence": 0.85,
+      "note": null
+    },
+    "programs": {
+      "value": [
+        "BS",
+        "MS",
+        "PhD"
+      ],
+      "confidence": 0.6,
+      "note": "keyword-spotted program tokens, not exhaustive"
+    },
+    "admissions_open": {
+      "value": "Open",
+      "confidence": 0.8,
+      "note": null
+    },
+    "flagged_fields": [
+      "programs"
+    ],
+    "content_hash": "a278172b93dc8f5ee361789e58cb2b2e41bf34953aefbc846cd5f9b52af8119f"
+  },
+  {
+    "institution_id": "itu",
+    "campus": null,
+    "source_url": "https://itu.edu.pk/admissions",
+    "fetched_at": "2026-07-16T10:55:12.319814+00:00",
+    "chunk_id": "itu",
+    "degree_level": {
+      "value": null,
+      "reason": "mixed-degree-level"
+    },
+    "constituent_college": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "deadline": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "programs": {
+      "value": [
+        "BS",
+        "MS",
+        "PhD"
+      ],
+      "confidence": 0.6,
+      "note": "keyword-spotted program tokens, not exhaustive"
+    },
+    "admissions_open": {
+      "value": "Open",
+      "confidence": 0.8,
+      "note": null
+    },
+    "flagged_fields": [
+      "programs"
+    ],
+    "content_hash": "4b388edb34b25b207601745603051577600ad2fb6dbb7401339fee64c68d1ac7"
+  },
+  {
+    "institution_id": "lums",
+    "campus": null,
+    "source_url": "https://admission.lums.edu.pk",
+    "fetched_at": "2026-07-16T10:55:10.662134+00:00",
+    "chunk_id": "lums",
+    "degree_level": {
+      "value": null,
+      "reason": "mixed-degree-level"
+    },
+    "constituent_college": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "deadline": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "programs": {
+      "value": [
+        "BS",
+        "BSc",
+        "MPhil",
+        "MS",
+        "PhD"
+      ],
+      "confidence": 0.6,
+      "note": "keyword-spotted program tokens, not exhaustive"
+    },
+    "admissions_open": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "flagged_fields": [
+      "programs"
+    ],
+    "content_hash": "f89e304d683862fc131be719c71c5aea1659820a95b0280f35396880a4738266"
+  },
+  {
+    "institution_id": "nust",
+    "campus": null,
+    "source_url": "https://ugadmissions.nust.edu.pk",
+    "fetched_at": "2026-07-16T10:54:24.217896+00:00",
+    "chunk_id": "nust",
+    "degree_level": {
+      "value": "Undergraduate",
+      "reason": null
+    },
+    "constituent_college": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "deadline": {
+      "value": [
+        {
+          "label": "NUST Entry Test (Series-4) Application Form",
+          "date": "18 Jun 2026"
+        },
+        {
+          "label": "ACT/SAT Basis Application Form",
+          "date": "25 Jul 2026"
+        }
+      ],
+      "confidence": 0.75,
+      "note": "multiple distinct deadlines found, one per program/track"
+    },
+    "programs": {
+      "value": [
+        "BS"
+      ],
+      "confidence": 0.6,
+      "note": "keyword-spotted program tokens, not exhaustive"
+    },
+    "admissions_open": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "flagged_fields": [
+      "deadline",
+      "programs"
+    ],
+    "content_hash": "90957c4bcdfbef6a12a6d9c4512f0ca73f7c646c2c64cdff2ec30e4c5bd5ae87"
+  },
+  {
+    "institution_id": "pieas",
+    "campus": null,
+    "source_url": "https://admissions.pieas.edu.pk",
+    "fetched_at": "2026-07-16T10:54:32.169817+00:00",
+    "chunk_id": "pieas",
+    "degree_level": {
+      "value": null,
+      "reason": "mixed-degree-level"
+    },
+    "constituent_college": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "deadline": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "programs": {
+      "value": [
+        "BS",
+        "MS",
+        "PhD"
+      ],
+      "confidence": 0.6,
+      "note": "keyword-spotted program tokens, not exhaustive"
+    },
+    "admissions_open": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "flagged_fields": [
+      "programs"
+    ],
+    "content_hash": "202d5f725c260a634464264b2a9150c3e4e1c881ca936f0a089360eefca1bd6a"
+  },
+  {
+    "institution_id": "pu",
+    "campus": null,
+    "source_url": "https://admissions.pu.edu.pk/admissions/",
+    "fetched_at": "2026-07-16T10:54:37.101869+00:00",
+    "chunk_id": "pu",
+    "degree_level": {
+      "value": null,
+      "reason": "mixed-degree-level"
+    },
+    "constituent_college": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "deadline": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "programs": {
+      "value": [
+        "BS",
+        "M.Phil",
+        "MS",
+        "Ph.D"
+      ],
+      "confidence": 0.6,
+      "note": "keyword-spotted program tokens, not exhaustive"
+    },
+    "admissions_open": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "flagged_fields": [
+      "programs"
+    ],
+    "content_hash": "e141d98631ef55166e4f43f586fc124e7a81974ff40fc54bf8e056b6a699b1ce"
+  },
+  {
+    "institution_id": "pu",
+    "campus": null,
+    "source_url": "https://pu.edu.pk/downloads/Admission-Regulations-Book.pdf?v=26",
+    "fetched_at": "2026-07-16T10:54:37.101869+00:00",
+    "chunk_id": "pu__pdf_downloads_admission_regulations_book_pdf_60fe7a015e",
+    "degree_level": {
+      "value": null,
+      "reason": "mixed-degree-level"
+    },
+    "constituent_college": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "deadline": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "programs": {
+      "value": [
+        "ADP",
+        "B.Sc",
+        "BBA",
+        "BS",
+        "BSc",
+        "M.Phil",
+        "MBBS",
+        "MPhil",
+        "MS",
+        "Ph.D"
+      ],
+      "confidence": 0.6,
+      "note": "keyword-spotted program tokens, not exhaustive"
+    },
+    "admissions_open": {
+      "value": "Open",
+      "confidence": 0.8,
+      "note": null
+    },
+    "flagged_fields": [
+      "programs"
+    ],
+    "content_hash": "2a2840173b2ff6e41fe69c6fe9e0522d6aa49deb3e5930fe2300b3cdf61bacaf"
+  },
+  {
+    "institution_id": "pu",
+    "campus": null,
+    "source_url": "https://pu.edu.pk/downloads/Merit-of-Last-Year-2025.pdf",
+    "fetched_at": "2026-07-16T10:54:37.101869+00:00",
+    "chunk_id": "pu__pdf_downloads_merit_of_last_year_2025_pdf_f60fe34ede",
+    "degree_level": {
+      "value": "Undergraduate",
+      "reason": null
+    },
+    "constituent_college": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "deadline": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "programs": {
+      "value": [
+        "ADP",
+        "B.Sc",
+        "BBA",
+        "BS"
+      ],
+      "confidence": 0.6,
+      "note": "keyword-spotted program tokens, not exhaustive"
+    },
+    "admissions_open": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "flagged_fields": [
+      "programs"
+    ],
+    "content_hash": "fa34c8c048eb2f7de4fedf85fe5159ffdeaf35dc9116fe177bb78642488d0fde"
+  },
+  {
+    "institution_id": "pu",
+    "campus": null,
+    "source_url": "https://pu.edu.pk/images/image/Admission-Notices/Instructions-Eligibility-Criteria-2026-27.pdf",
+    "fetched_at": "2026-07-16T10:54:37.101869+00:00",
+    "chunk_id": "pu__pdf_uctions_eligibility_criteria_2026_27_pdf_306aa168f8",
+    "degree_level": {
+      "value": "Undergraduate",
+      "reason": null
+    },
+    "constituent_college": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "deadline": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "programs": {
+      "value": [
+        "B.Sc",
+        "BS"
+      ],
+      "confidence": 0.6,
+      "note": "keyword-spotted program tokens, not exhaustive"
+    },
+    "admissions_open": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "flagged_fields": [
+      "programs"
+    ],
+    "content_hash": "3dcf7450d8c2a17f81d99edd6219a4f1f7d34ab6ef9080de44bdd6869c14bf00"
+  },
+  {
+    "institution_id": "uhs",
+    "campus": null,
+    "source_url": "https://www.uhs.edu.pk/admissions.php",
+    "fetched_at": "2026-07-16T10:55:34.728764+00:00",
+    "chunk_id": "uhs",
+    "degree_level": {
+      "value": null,
+      "reason": "mixed-degree-level"
+    },
+    "constituent_college": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "deadline": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "programs": {
+      "value": [
+        "B.Sc",
+        "BDS",
+        "BS",
+        "BSc",
+        "M.Phil",
+        "MBBS",
+        "Ph.D"
+      ],
+      "confidence": 0.6,
+      "note": "keyword-spotted program tokens, not exhaustive"
+    },
+    "admissions_open": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "flagged_fields": [
+      "programs"
+    ],
+    "content_hash": "af4085b66fc645bc38f737e87b7a3f1b9da6cd49f37779a53852e42df639117f"
+  },
+  {
+    "institution_id": "uhs",
+    "campus": null,
+    "source_url": "https://www.uhs.edu.pk/downloads/postrnbscnursing2year.pdf",
+    "fetched_at": "2026-07-16T10:55:34.728764+00:00",
+    "chunk_id": "uhs__pdf_downloads_postrnbscnursing2year_pdf_6a99d71482",
+    "degree_level": {
+      "value": "Undergraduate",
+      "reason": null
+    },
+    "constituent_college": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "deadline": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "programs": {
+      "value": [
+        "BSc"
+      ],
+      "confidence": 0.6,
+      "note": "keyword-spotted program tokens, not exhaustive"
+    },
+    "admissions_open": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "flagged_fields": [
+      "programs"
+    ],
+    "content_hash": "6f6d0d54b93b1922ddc50087bdd2584433eb2d5cbade3f7513caab5b1f3faddd"
+  },
+  {
+    "institution_id": "uhs",
+    "campus": null,
+    "source_url": "https://www.uhs.edu.pk/downloads/publicnoticebsn12226.pdf",
+    "fetched_at": "2026-07-16T10:55:34.728764+00:00",
+    "chunk_id": "uhs__pdf_downloads_publicnoticebsn12226_pdf_53a95d8776",
+    "degree_level": {
+      "value": "Undergraduate",
+      "reason": null
+    },
+    "constituent_college": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "deadline": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "programs": {
+      "value": [
+        "BS"
+      ],
+      "confidence": 0.6,
+      "note": "keyword-spotted program tokens, not exhaustive"
+    },
+    "admissions_open": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "flagged_fields": [
+      "programs"
+    ],
+    "content_hash": "21d7a207e3bfd385dcff31b1228458ebf9dfade022855ff78a80514f3a25241b"
+  },
+  {
+    "institution_id": "uhs",
+    "campus": null,
+    "source_url": "https://www.uhs.edu.pk/downloads/uhsbsnursing.pdf",
+    "fetched_at": "2026-07-16T10:55:34.728764+00:00",
+    "chunk_id": "uhs__pdf_downloads_uhsbsnursing_pdf_faa2114c41",
+    "degree_level": {
+      "value": "Undergraduate",
+      "reason": null
+    },
+    "constituent_college": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "deadline": {
+      "value": "6th January, 2026",
+      "confidence": 0.95,
+      "note": null
+    },
+    "programs": {
+      "value": [
+        "BS"
+      ],
+      "confidence": 0.6,
+      "note": "keyword-spotted program tokens, not exhaustive"
+    },
+    "admissions_open": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "flagged_fields": [
+      "programs"
+    ],
+    "content_hash": "9b803c984bd31f0c640777624a44a26cceff6f7522195b4f07b39d13dc096114"
+  },
+  {
+    "institution_id": "uhs",
+    "campus": null,
+    "source_url": "https://www.uhs.edu.pk/images/BDSvacantseats.pdf",
+    "fetched_at": "2026-07-16T10:55:34.728764+00:00",
+    "chunk_id": "uhs__pdf_images_bdsvacantseats_pdf_e4da4d2340",
+    "degree_level": {
+      "value": "Undergraduate",
+      "reason": null
+    },
+    "constituent_college": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "deadline": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "programs": {
+      "value": [
+        "BDS"
+      ],
+      "confidence": 0.6,
+      "note": "keyword-spotted program tokens, not exhaustive"
+    },
+    "admissions_open": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "flagged_fields": [
+      "programs"
+    ],
+    "content_hash": "1319527fbb08079966a7ce8a8db89a2a7aee3150a572d29abb6bf9d6df29bfa8"
+  },
+  {
+    "institution_id": "uhs",
+    "campus": null,
+    "source_url": "https://www.uhs.edu.pk/images/UHSAd1.pdf",
+    "fetched_at": "2026-07-16T10:55:34.728764+00:00",
+    "chunk_id": "uhs__pdf_images_uhsad1_pdf_91559b345f",
+    "degree_level": {
+      "value": "Undergraduate",
+      "reason": null
+    },
+    "constituent_college": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "deadline": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "programs": {
+      "value": [
+        "BDS",
+        "MBBS"
+      ],
+      "confidence": 0.6,
+      "note": "keyword-spotted program tokens, not exhaustive"
+    },
+    "admissions_open": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "flagged_fields": [
+      "programs"
+    ],
+    "content_hash": "38a1cbd4f54c8cf4ee576913ce203ad6ac7b676214a2d5f56e9c9d1ec509614f"
+  },
+  {
+    "institution_id": "uhs",
+    "campus": null,
+    "source_url": "https://www.uhs.edu.pk/images/uhsad2.pdf",
+    "fetched_at": "2026-07-16T10:55:34.728764+00:00",
+    "chunk_id": "uhs__pdf_images_uhsad2_pdf_25f6730956",
+    "degree_level": {
+      "value": "Undergraduate",
+      "reason": null
+    },
+    "constituent_college": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "deadline": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "programs": {
+      "value": [
+        "BDS",
+        "MBBS"
+      ],
+      "confidence": 0.6,
+      "note": "keyword-spotted program tokens, not exhaustive"
+    },
+    "admissions_open": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "flagged_fields": [
+      "programs"
+    ],
+    "content_hash": "38a1cbd4f54c8cf4ee576913ce203ad6ac7b676214a2d5f56e9c9d1ec509614f"
+  },
+  {
+    "institution_id": "uhs",
+    "campus": null,
+    "source_url": "https://www.uhs.edu.pk/meritlist23/alert13.pdf",
+    "fetched_at": "2026-07-16T10:55:34.728764+00:00",
+    "chunk_id": "uhs__pdf_meritlist23_alert13_pdf_4990453c89",
+    "degree_level": {
+      "value": "Undergraduate",
+      "reason": null
+    },
+    "constituent_college": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "deadline": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "programs": {
+      "value": [
+        "BS"
+      ],
+      "confidence": 0.6,
+      "note": "keyword-spotted program tokens, not exhaustive"
+    },
+    "admissions_open": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "flagged_fields": [
+      "programs"
+    ],
+    "content_hash": "21d7a207e3bfd385dcff31b1228458ebf9dfade022855ff78a80514f3a25241b"
+  }
+]

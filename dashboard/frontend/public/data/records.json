@@ -3,7 +3,7 @@
     "institution_id": "aku",
     "campus": "Pakistan (Karachi) \u2014 MBBS",
     "source_url": "https://www.aku.edu/admissions/Documents/fee-structure-MBBS.pdf",
-    "fetched_at": "2026-07-16T07:58:15.917244+00:00",
+    "fetched_at": "2026-07-16T10:57:33.082142+00:00",
     "chunk_id": "aku__pakistan_(karachi)_\u2014_mbbs__pdf_issions_documents_fee_structure_mbbs_pdf_84e5aa27bc",
     "degree_level": {
       "value": "Undergraduate",
@@ -36,7 +36,7 @@
     "institution_id": "aku",
     "campus": "Pakistan (Karachi) \u2014 MBBS",
     "source_url": "https://www.aku.edu/admissions/Documents/sample-paper-MBBS.PDF",
-    "fetched_at": "2026-07-16T07:58:15.917244+00:00",
+    "fetched_at": "2026-07-16T10:57:33.082142+00:00",
     "chunk_id": "aku__pakistan_(karachi)_\u2014_mbbs__pdf_missions_documents_sample_paper_mbbs_pdf_8c482d54bd",
     "degree_level": {
       "value": "Undergraduate",
@@ -64,41 +64,10 @@
     }
   },
   {
-    "institution_id": "fast_nu",
-    "campus": null,
-    "source_url": "https://admissions.nu.edu.pk",
-    "fetched_at": "2026-07-16T07:55:55.043485+00:00",
-    "chunk_id": "fast_nu",
-    "degree_level": {
-      "value": null,
-      "reason": "not-admissions-content"
-    },
-    "constituent_college": {
-      "value": null,
-      "confidence": null,
-      "note": null
-    },
-    "deadline": {
-      "value": null,
-      "confidence": null,
-      "note": null
-    },
-    "programs": {
-      "value": null,
-      "confidence": null,
-      "note": null
-    },
-    "admissions_open": {
-      "value": null,
-      "confidence": null,
-      "note": null
-    }
-  },
-  {
     "institution_id": "pu",
     "campus": null,
-    "source_url": "http://pu.edu.pk/downloads/Instruction-Manual-Online-Admission.pdf?v=1784188554",
-    "fetched_at": "2026-07-16T07:55:57.326086+00:00",
+    "source_url": "http://pu.edu.pk/downloads/Instruction-Manual-Online-Admission.pdf?v=1784199274",
+    "fetched_at": "2026-07-16T10:54:37.101869+00:00",
     "chunk_id": "pu__pdf__instruction_manual_online_admission_pdf_37b5c08454",
     "degree_level": {
       "value": null,
@@ -128,8 +97,8 @@
   {
     "institution_id": "pu",
     "campus": null,
-    "source_url": "http://pu.edu.pk/downloads/faqs.pdf?v=1784188554",
-    "fetched_at": "2026-07-16T07:55:57.326086+00:00",
+    "source_url": "http://pu.edu.pk/downloads/faqs.pdf?v=1784199274",
+    "fetched_at": "2026-07-16T10:54:37.101869+00:00",
     "chunk_id": "pu__pdf_downloads_faqs_pdf_1362df203d",
     "degree_level": {
       "value": null,
@@ -160,11 +129,11 @@
     "institution_id": "pu",
     "campus": null,
     "source_url": "https://pu.edu.pk/downloads/dwnfiles/Form-for-Overseas-Pakistani.pdf",
-    "fetched_at": "2026-07-16T07:55:57.326086+00:00",
+    "fetched_at": "2026-07-16T10:54:37.101869+00:00",
     "chunk_id": "pu__pdf_dwnfiles_form_for_overseas_pakistani_pdf_e2b76046bf",
     "degree_level": {
       "value": null,
-      "reason": "no-signal"
+      "reason": "not-admissions-content"
     },
     "constituent_college": {
       "value": null,
@@ -191,7 +160,7 @@
     "institution_id": "pu",
     "campus": null,
     "source_url": "https://pu.edu.pk/images/image/Admission-Notices/Affidavit-for-newly-admitted-students.pdf",
-    "fetched_at": "2026-07-16T07:55:57.326086+00:00",
+    "fetched_at": "2026-07-16T10:54:37.101869+00:00",
     "chunk_id": "pu__pdf_ffidavit_for_newly_admitted_students_pdf_33036b9505",
     "degree_level": {
       "value": null,
@@ -222,7 +191,7 @@
     "institution_id": "uhs",
     "campus": null,
     "source_url": "https://www.uhs.edu.pk/downloads/adminugprograms.pdf",
-    "fetched_at": "2026-07-16T07:57:09.623493+00:00",
+    "fetched_at": "2026-07-16T10:55:34.728764+00:00",
     "chunk_id": "uhs__pdf_downloads_adminugprograms_pdf_f064faf102",
     "degree_level": {
       "value": "Undergraduate",
@@ -253,7 +222,7 @@
     "institution_id": "uhs",
     "campus": null,
     "source_url": "https://www.uhs.edu.pk/downloads/nursingentrancee.pdf",
-    "fetched_at": "2026-07-16T07:57:09.623493+00:00",
+    "fetched_at": "2026-07-16T10:55:34.728764+00:00",
     "chunk_id": "uhs__pdf_downloads_nursingentrancee_pdf_fb6c97ffd3",
     "degree_level": {
       "value": "Undergraduate",
@@ -273,7 +242,7 @@
       "value": [
         "B.Sc. Nursing (Post RN)"
       ],
-      "confidence": 0.9,
+      "confidence": 0.95,
       "note": null
     },
     "admissions_open": {
@@ -286,7 +255,7 @@
     "institution_id": "uhs",
     "campus": null,
     "source_url": "https://www.uhs.edu.pk/downloads/ugadmission.pdf",
-    "fetched_at": "2026-07-16T07:57:09.623493+00:00",
+    "fetched_at": "2026-07-16T10:55:34.728764+00:00",
     "chunk_id": "uhs__pdf_downloads_ugadmission_pdf_88cdec17d2",
     "degree_level": {
       "value": "Undergraduate",
@@ -317,7 +286,7 @@
     "institution_id": "uhs",
     "campus": null,
     "source_url": "https://www.uhs.edu.pk/downloads/admissionsladyhealthvistorscourse.pdf",
-    "fetched_at": "2026-07-16T07:57:09.623493+00:00",
+    "fetched_at": "2026-07-16T10:55:34.728764+00:00",
     "chunk_id": "uhs__pdf_ds_admissionsladyhealthvistorscourse_pdf_a2bbaf9c69",
     "degree_level": {
       "value": "Undergraduate",
@@ -348,7 +317,7 @@
     "institution_id": "uhs",
     "campus": null,
     "source_url": "https://www.uhs.edu.pk/Undergraduateadmissionprograms2025.pdf",
-    "fetched_at": "2026-07-16T07:57:09.623493+00:00",
+    "fetched_at": "2026-07-16T10:55:34.728764+00:00",
     "chunk_id": "uhs__pdf_undergraduateadmissionprograms2025_pdf_9475213f44",
     "degree_level": {
       "value": "Undergraduate",
