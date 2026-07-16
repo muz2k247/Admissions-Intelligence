@@ -28,6 +28,8 @@ from pathlib import Path
 import yaml
 from google import genai
 
+from pipeline.health import record_stage
+
 _DEFAULT_CHUNKS = Path(".tmp") / "chunks" / "chunks.json"
 _DEFAULT_OUT = Path(".tmp") / "chunks" / "llm_fields.json"
 _MODEL = "gemini-3.5-flash"
@@ -127,15 +129,24 @@ def main() -> None:
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         print("ERROR: GEMINI_API_KEY environment variable not set.", file=sys.stderr)
+        record_stage("extract_llm", {
+            "error": "GEMINI_API_KEY environment variable not set",
+            "chunks_in": None, "chunks_extracted": 0, "batches_failed": 0,
+        })
         sys.exit(1)
 
     if not args.chunks.is_file():
         print(f"ERROR: Chunks file not found: {args.chunks}", file=sys.stderr)
+        record_stage("extract_llm", {
+            "error": f"chunks file not found: {args.chunks}",
+            "chunks_in": None, "chunks_extracted": 0, "batches_failed": 0,
+        })
         sys.exit(1)
 
     chunks = json.loads(args.chunks.read_text(encoding="utf-8"))
     if not chunks:
         print("ERROR: No chunks to extract.", file=sys.stderr)
+        record_stage("extract_llm", {"error": "no chunks to extract", "chunks_in": 0})
         sys.exit(1)
 
     constituent_colleges = _load_constituent_colleges()
@@ -144,25 +155,45 @@ def main() -> None:
 
     # Merge results from all batches.
     merged: dict = {}
+    batches_failed = 0
     for i in range(0, len(chunks), _BATCH_SIZE):
         batch = chunks[i : i + _BATCH_SIZE]
         print(f"  Batch {i // _BATCH_SIZE + 1}: {len(batch)} chunk(s)...")
         try:
             result = _extract_batch(client, batch, constituent_colleges)
             merged.update(result)
-        except (json.JSONDecodeError, Exception) as exc:
+        except Exception as exc:
             print(f"WARN: Gemini extraction failed for batch: {exc}", file=sys.stderr)
             # Best-effort: continue with remaining batches.
+            batches_failed += 1
             continue
 
     if not merged:
+        # batches_failed here reflects batches that RAISED, not batches that
+        # returned cleanly but produced no usable fields -- the latter case
+        # (every batch "succeeds" with an empty {} response) would still hit
+        # this branch with batches_failed == 0, which is a real but accepted
+        # ambiguity: either way, Stage 4 correctly falls back to regex, and
+        # a curator reading health.json's warning at least sees SOME failure
+        # was recorded even if the exact count under-represents it.
         print("WARN: No fields extracted from any batch — Stage 4 will use regex fallback.", file=sys.stderr)
+        record_stage("extract_llm", {
+            "error": "no fields extracted from any batch",
+            "chunks_in": len(chunks),
+            "chunks_extracted": 0,
+            "batches_failed": batches_failed,
+        })
         sys.exit(1)
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(merged, indent=2), encoding="utf-8")
 
     print(f"Extraction complete: {len(merged)} chunk(s) with fields → {args.out}")
+    record_stage("extract_llm", {
+        "chunks_in": len(chunks),
+        "chunks_extracted": len(merged),
+        "batches_failed": batches_failed,
+    })
 
 
 if __name__ == "__main__":

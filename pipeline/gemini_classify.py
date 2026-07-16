@@ -22,6 +22,8 @@ from pathlib import Path
 
 from google import genai
 
+from pipeline.health import record_stage
+
 _DEFAULT_CHUNKS = Path(".tmp") / "chunks" / "chunks.json"
 _DEFAULT_OUT = Path(".tmp") / "chunks" / "classified.json"
 _MODEL = "gemini-3.5-flash"
@@ -94,15 +96,18 @@ def main() -> None:
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         print("ERROR: GEMINI_API_KEY environment variable not set.", file=sys.stderr)
+        record_stage("classify", {"error": "GEMINI_API_KEY environment variable not set", "chunks_in": None})
         sys.exit(1)
 
     if not args.chunks.is_file():
         print(f"ERROR: Chunks file not found: {args.chunks}", file=sys.stderr)
+        record_stage("classify", {"error": f"chunks file not found: {args.chunks}", "chunks_in": None})
         sys.exit(1)
 
     chunks = json.loads(args.chunks.read_text(encoding="utf-8"))
     if not chunks:
         print("ERROR: No chunks to classify.", file=sys.stderr)
+        record_stage("classify", {"error": "no chunks to classify", "chunks_in": 0})
         sys.exit(1)
 
     print(f"Classifying {len(chunks)} chunk(s) via Gemini ({_MODEL})...")
@@ -115,8 +120,9 @@ def main() -> None:
         print(f"  Batch {i // _BATCH_SIZE + 1}: {len(batch)} chunk(s)...")
         try:
             result = _classify_batch(client, batch)
-        except (json.JSONDecodeError, Exception) as exc:
+        except Exception as exc:
             print(f"ERROR: Gemini classification failed: {exc}", file=sys.stderr)
+            record_stage("classify", {"error": str(exc), "chunks_in": len(chunks)})
             sys.exit(1)
         for key in merged:
             merged[key].extend(result.get(key, []))
@@ -128,6 +134,7 @@ def main() -> None:
     pg = len(merged["Postgraduate"])
     amb = len(merged["Ambiguous"])
     print(f"Classification complete: {ug} UG, {pg} PG, {amb} Ambiguous → {args.out}")
+    record_stage("classify", {"chunks_in": len(chunks), "undergraduate": ug, "postgraduate": pg, "ambiguous": amb})
 
 
 if __name__ == "__main__":

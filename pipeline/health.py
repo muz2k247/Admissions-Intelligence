@@ -139,6 +139,18 @@ def _derive_status(fragment: dict) -> tuple[str, list[str]]:
         status = STATUS_FAILED
         warnings.append("Run did not reach stage 5 (publish) — check which stage sections below are present.")
 
+    classify = fragment.get("classify")
+    if isinstance(classify, dict) and classify.get("error"):
+        warnings.append(f"Classification failed: {classify['error']}")
+
+    extract_llm = fragment.get("extract_llm")
+    if isinstance(extract_llm, dict):
+        if extract_llm.get("error"):
+            warnings.append(f"LLM field extraction failed: {extract_llm['error']}")
+        batches_failed = extract_llm.get("batches_failed")
+        if isinstance(batches_failed, int) and batches_failed > 0:
+            warnings.append(f"LLM field extraction: {batches_failed} batch(es) failed this run.")
+
     build = fragment.get("build")
     if isinstance(build, dict):
         mode = build.get("extraction_mode")

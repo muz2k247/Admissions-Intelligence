@@ -140,6 +140,46 @@ def test_derive_status_scrape_failures_warning():
     assert any("2 of 17" in w for w in warnings)
 
 
+def test_derive_status_classify_error_warning():
+    fragment = {
+        "publish": {"decision": "published"},
+        "classify": {"error": "GEMINI_API_KEY environment variable not set"},
+    }
+    status, warnings = _derive_status(fragment)
+    assert status == STATUS_PUBLISHED
+    assert any("Classification failed: GEMINI_API_KEY" in w for w in warnings)
+
+
+def test_derive_status_extract_llm_error_warning():
+    fragment = {
+        "publish": {"decision": "published"},
+        "extract_llm": {"error": "no fields extracted from any batch"},
+    }
+    status, warnings = _derive_status(fragment)
+    assert status == STATUS_PUBLISHED
+    assert any("LLM field extraction failed: no fields extracted" in w for w in warnings)
+
+
+def test_derive_status_extract_llm_batches_failed_warning():
+    fragment = {
+        "publish": {"decision": "published"},
+        "extract_llm": {"chunks_in": 10, "chunks_extracted": 8, "batches_failed": 1},
+    }
+    status, warnings = _derive_status(fragment)
+    assert status == STATUS_PUBLISHED
+    assert any("1 batch(es) failed" in w for w in warnings)
+
+
+def test_derive_status_extract_llm_no_error_no_warning():
+    fragment = {
+        "publish": {"decision": "published"},
+        "extract_llm": {"chunks_in": 10, "chunks_extracted": 10, "batches_failed": 0},
+    }
+    status, warnings = _derive_status(fragment)
+    assert status == STATUS_PUBLISHED
+    assert warnings == []
+
+
 def test_derive_status_failed_when_publish_section_missing():
     status, warnings = _derive_status({"scrape": {"attempted": 1, "ok": 1, "failed": 0}})
     assert status == STATUS_FAILED
