@@ -7,7 +7,15 @@
     "campuses": [
       "Lahore (Main + sub-campuses)"
     ],
-    "enabled": true
+    "enabled": true,
+    "sources": [
+      {
+        "campus": "Lahore (Main + sub-campuses)",
+        "url": "https://admission.uet.edu.pk",
+        "format": "html",
+        "render": "static"
+      }
+    ]
   },
   {
     "id": "uet_taxila",
@@ -15,7 +23,15 @@
     "admitting_body": false,
     "ug_pg_mixed": true,
     "campuses": [],
-    "enabled": true
+    "enabled": true,
+    "sources": [
+      {
+        "campus": null,
+        "url": "https://admissions.uettaxila.edu.pk",
+        "format": "html",
+        "render": "static"
+      }
+    ]
   },
   {
     "id": "nust",
@@ -23,7 +39,15 @@
     "admitting_body": false,
     "ug_pg_mixed": false,
     "campuses": [],
-    "enabled": true
+    "enabled": true,
+    "sources": [
+      {
+        "campus": null,
+        "url": "https://ugadmissions.nust.edu.pk",
+        "format": "html",
+        "render": "static"
+      }
+    ]
   },
   {
     "id": "giki",
@@ -31,7 +55,15 @@
     "admitting_body": false,
     "ug_pg_mixed": false,
     "campuses": [],
-    "enabled": true
+    "enabled": true,
+    "sources": [
+      {
+        "campus": null,
+        "url": "https://giki.edu.pk/admissions/admissions-undergraduates/",
+        "format": "html",
+        "render": "static"
+      }
+    ]
   },
   {
     "id": "pieas",
@@ -39,7 +71,15 @@
     "admitting_body": false,
     "ug_pg_mixed": true,
     "campuses": [],
-    "enabled": true
+    "enabled": true,
+    "sources": [
+      {
+        "campus": null,
+        "url": "https://admissions.pieas.edu.pk",
+        "format": "html",
+        "render": "static"
+      }
+    ]
   },
   {
     "id": "fast_nu",
@@ -47,7 +87,15 @@
     "admitting_body": false,
     "ug_pg_mixed": true,
     "campuses": [],
-    "enabled": true
+    "enabled": true,
+    "sources": [
+      {
+        "campus": null,
+        "url": "https://admissions.nu.edu.pk",
+        "format": "html",
+        "render": "static"
+      }
+    ]
   },
   {
     "id": "pu",
@@ -55,7 +103,15 @@
     "admitting_body": false,
     "ug_pg_mixed": true,
     "campuses": [],
-    "enabled": true
+    "enabled": true,
+    "sources": [
+      {
+        "campus": null,
+        "url": "https://admissions.pu.edu.pk/admissions/",
+        "format": "html+pdf",
+        "render": "static"
+      }
+    ]
   },
   {
     "id": "comsats",
@@ -63,7 +119,15 @@
     "admitting_body": false,
     "ug_pg_mixed": true,
     "campuses": [],
-    "enabled": true
+    "enabled": true,
+    "sources": [
+      {
+        "campus": null,
+        "url": "https://admissions.comsats.edu.pk",
+        "format": "html",
+        "render": "static"
+      }
+    ]
   },
   {
     "id": "lums",
@@ -71,7 +135,15 @@
     "admitting_body": false,
     "ug_pg_mixed": true,
     "campuses": [],
-    "enabled": true
+    "enabled": true,
+    "sources": [
+      {
+        "campus": null,
+        "url": "https://admission.lums.edu.pk",
+        "format": "html",
+        "render": "static"
+      }
+    ]
   },
   {
     "id": "itu",
@@ -79,7 +151,15 @@
     "admitting_body": false,
     "ug_pg_mixed": true,
     "campuses": [],
-    "enabled": true
+    "enabled": true,
+    "sources": [
+      {
+        "campus": null,
+        "url": "https://itu.edu.pk/admissions",
+        "format": "html",
+        "render": "static"
+      }
+    ]
   },
   {
     "id": "ist",
@@ -87,7 +167,15 @@
     "admitting_body": false,
     "ug_pg_mixed": true,
     "campuses": [],
-    "enabled": true
+    "enabled": true,
+    "sources": [
+      {
+        "campus": null,
+        "url": "https://ist.edu.pk/admission",
+        "format": "html",
+        "render": "js"
+      }
+    ]
   },
   {
     "id": "air_university",
@@ -98,7 +186,21 @@
       "Islamabad & Punjab campuses",
       "Karachi"
     ],
-    "enabled": true
+    "enabled": true,
+    "sources": [
+      {
+        "campus": "Islamabad & Punjab campuses",
+        "url": "https://portals.au.edu.pk/admissions/",
+        "format": "html+pdf",
+        "render": "static"
+      },
+      {
+        "campus": "Karachi",
+        "url": "https://kc.au.edu.pk/Pages/Admission/admission_schedule.aspx",
+        "format": "html+pdf",
+        "render": "static"
+      }
+    ]
   },
   {
     "id": "uhs",
@@ -106,7 +208,15 @@
     "admitting_body": true,
     "ug_pg_mixed": true,
     "campuses": [],
-    "enabled": true
+    "enabled": true,
+    "sources": [
+      {
+        "campus": null,
+        "url": "https://www.uhs.edu.pk/admissions.php",
+        "format": "html+pdf",
+        "render": "static"
+      }
+    ]
   },
   {
     "id": "nums",
@@ -114,7 +224,15 @@
     "admitting_body": true,
     "ug_pg_mixed": true,
     "campuses": [],
-    "enabled": true
+    "enabled": true,
+    "sources": [
+      {
+        "campus": null,
+        "url": "https://numspak.edu.pk/admissions-details.php",
+        "format": "html+pdf",
+        "render": "static"
+      }
+    ]
   },
   {
     "id": "aku",
@@ -124,7 +242,15 @@
     "campuses": [
       "Pakistan (Karachi) \u2014 MBBS"
     ],
-    "enabled": true
+    "enabled": true,
+    "sources": [
+      {
+        "campus": "Pakistan (Karachi) \u2014 MBBS",
+        "url": "https://www.aku.edu/admissions/mbbs/",
+        "format": "html+pdf",
+        "render": "static"
+      }
+    ]
   },
   {
     "id": "bahria",
@@ -132,6 +258,14 @@
     "admitting_body": false,
     "ug_pg_mixed": true,
     "campuses": [],
-    "enabled": true
+    "enabled": true,
+    "sources": [
+      {
+        "campus": null,
+        "url": "https://www.bahria.edu.pk/Home/AdmissionRoadmap?programType=UnderGraduate",
+        "format": "html",
+        "render": "static"
+      }
+    ]
   }
 ]
