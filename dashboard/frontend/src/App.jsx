@@ -86,8 +86,8 @@ export default function App() {
             title="Couldn't load admission records"
             message={
               <>
-                The dashboard couldn't reach the API. Check that the backend server is running,
-                then{" "}
+                The dashboard couldn't load the published data. This site is fully static — check
+                that the pipeline has published <code>records.json</code> to the site, then{" "}
                 <button type="button" className="link-button" onClick={() => setReloadToken((t) => t + 1)}>
                   try again
                 </button>

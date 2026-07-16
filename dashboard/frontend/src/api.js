@@ -9,6 +9,12 @@ async function getJson(path) {
     if (!res.ok) {
       throw new Error(`${path} failed: ${res.status}`);
     }
+    const contentType = res.headers.get("content-type") ?? "";
+    if (!contentType.includes("application/json")) {
+      // The static host's SPA rewrite returns index.html (200, text/html) for any
+      // missing path — catching that here turns a JSON-parse crash into a clear signal.
+      throw new Error(`${path} is likely missing or not yet published (unexpected content-type: ${contentType || "none"})`);
+    }
     return await res.json();
   } finally {
     clearTimeout(timeout);
