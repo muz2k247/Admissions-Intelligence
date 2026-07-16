@@ -63,11 +63,16 @@ export default function ReviewQueue() {
   // Optimistic local hide of decided chunk_ids -- a decision only takes
   // effect in the published data on the NEXT pipeline run, so this just
   // keeps the queue from looking stale for the rest of this session
-  // (mirrors RecordReviewRow's FieldEditor optimistic-save pattern).
+  // (mirrors RecordReviewRow's FieldEditor optimistic-save pattern). Not
+  // reset on reloadToken: relies on the invariant that Retry is only
+  // reachable from the pre-any-decision error state, never after records
+  // have loaded, so `decided` is always empty when a retry can fire.
   const [decided, setDecided] = useState(() => new Set());
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
+    setError(null);
     fetchNeedsReviewRecords()
       .then((data) => {
         if (!cancelled) setRecords(data);
@@ -78,7 +83,7 @@ export default function ReviewQueue() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [reloadToken]);
 
   function handleDecided(chunkId) {
     setDecided((prev) => new Set(prev).add(chunkId));
@@ -88,7 +93,14 @@ export default function ReviewQueue() {
 
   return (
     <div>
-      {error && <p className="error" role="alert">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}{" "}
+          <button type="button" className="btn btn--ghost btn--sm" onClick={() => setReloadToken((t) => t + 1)}>
+            Retry
+          </button>
+        </p>
+      )}
       {!error && records === null && <p className="muted">Loading needs-review queue…</p>}
       {pending !== null && pending.length === 0 && (
         <p className="muted">Nothing pending review.</p>

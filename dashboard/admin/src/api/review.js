@@ -1,6 +1,7 @@
 import { doc, setDoc } from "firebase/firestore";
 import { db, auth } from "../firebase";
 import { contentHash } from "../lib/contentHash";
+import { fetchPublicJson } from "./publicData";
 
 // The admin app reads the needs-review queue by fetching the PUBLIC site's
 // static needs_review.json cross-origin -- same pattern as api/records.js's
@@ -13,15 +14,7 @@ const NEEDS_REVIEW_URL =
 export { contentHash };
 
 export async function fetchNeedsReviewRecords() {
-  const resp = await fetch(NEEDS_REVIEW_URL);
-  if (!resp.ok) {
-    throw new Error(`Failed to fetch needs-review records (HTTP ${resp.status})`);
-  }
-  const data = await resp.json();
-  if (!Array.isArray(data)) {
-    throw new Error("needs_review.json was not an array");
-  }
-  return data;
+  return fetchPublicJson(NEEDS_REVIEW_URL, "needs_review.json");
 }
 
 /* Record a curator's approve/reject call on a needs-review record. Keyed by

@@ -11,9 +11,11 @@ const TABS = ["Published", "Needs Review", "Institutions", "Schedule", "Settings
 function PublishedTab() {
   const [records, setRecords] = useState(null);
   const [error, setError] = useState(null);
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
+    setError(null);
     fetchPublishedRecords()
       .then((data) => {
         if (!cancelled) setRecords(data);
@@ -24,11 +26,18 @@ function PublishedTab() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [reloadToken]);
 
   return (
     <>
-      {error && <p className="error" role="alert">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}{" "}
+          <button type="button" className="btn btn--ghost btn--sm" onClick={() => setReloadToken((t) => t + 1)}>
+            Retry
+          </button>
+        </p>
+      )}
       {!error && records === null && <p className="muted">Loading records…</p>}
       {records !== null && records.length === 0 && (
         <p className="muted">No published records to review.</p>

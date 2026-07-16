@@ -1,5 +1,6 @@
 import { collection, doc, getDoc, getDocs, setDoc } from "firebase/firestore";
 import { db, auth } from "../firebase";
+import { fetchPublicJson } from "./publicData";
 
 // The admin app lists institutions by fetching the PUBLIC site's static
 // institutions.json cross-origin -- same pattern as api/records.js's
@@ -17,15 +18,7 @@ export const VALID_FORMATS = ["html", "html+pdf"];
 export const VALID_RENDER_MODES = ["static", "js"];
 
 export async function fetchPublishedInstitutions() {
-  const resp = await fetch(PUBLIC_INSTITUTIONS_URL);
-  if (!resp.ok) {
-    throw new Error(`Failed to fetch published institutions (HTTP ${resp.status})`);
-  }
-  const data = await resp.json();
-  if (!Array.isArray(data)) {
-    throw new Error("Published institutions.json was not an array");
-  }
-  return data;
+  return fetchPublicJson(PUBLIC_INSTITUTIONS_URL, "published institutions.json");
 }
 
 export async function fetchInstitutionDoc(institutionId) {
