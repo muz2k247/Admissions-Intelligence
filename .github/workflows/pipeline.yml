@@ -98,11 +98,55 @@ jobs:
       - name: 'Stage 5: Publish static data'
         run: python -m pipeline.run_full stage5 --extracted .tmp/extracted
 
+      - name: Finalize health.json
+        # Runs even after an earlier step failed (a crashed scrape, a
+        # refused publish) -- health.json is the durable record of what
+        # happened on EVERY run, not just successful ones (Phase T Task 4).
+        # Each stage above already called pipeline.health.record_stage()
+        # into .tmp/health/run_health.json as it ran; this derives the
+        # overall published/publish_refused/failed status from whichever
+        # sections got that far and writes the 4th static file.
+        if: always()
+        run: python -m pipeline.health finalize --publish-dir dashboard/frontend/public/data
+
       - name: Commit and push if data changed
         id: publish
+        # if: always() so a crashed/refused run still commits and publishes
+        # its health.json -- see the Finalize health step above. On such a
+        # run, health.json is the only file that changed; records.json/
+        # institutions.json/needs_review.json are untouched because the
+        # stage that would have written them never got that far (or
+        # stage 5 itself refused, in which case _write_json_files_atomic
+        # never ran and those files are still exactly what the previous
+        # successful run published).
+        if: always()
         run: |
           git config user.name "Admissions Intelligence Pipeline"
           git config user.email "pipeline@admissions-intelligence.local"
+          # --autostash: stage 5 (and health finalize) have already written
+          # modified tracked files to the working tree by this point, and a
+          # plain `git pull --rebase` refuses to start at all with a dirty
+          # tree -- not because of any real upstream divergence, just
+          # ordering. --autostash stashes those changes, rebases, then pops
+          # the stash back so they're staged/committed normally below.
+          #
+          # Still guarded: a failed/conflicting rebase must not abort this
+          # step outright (the shell's default set -e would otherwise skip
+          # straight past git add/commit/push AND the echo ... >>$GITHUB_OUTPUT
+          # lines below, silently losing this run's published_sha/changed
+          # outputs -- exactly the crashed-run case this if: always() step
+          # exists to cover). A genuine conflict is rare (these paths are
+          # pipeline-owned and this job holds the admissions-pipeline
+          # concurrency group), but "rare" isn't "never". On failure, abort
+          # back to a clean tree (git rebase --abort restores the autostash
+          # automatically) and proceed with the local commit as the base; a
+          # genuine divergence then surfaces as a `git push` failure below
+          # instead, which is no worse than this step's pre-existing
+          # (unguarded) push failure mode.
+          if ! git pull --rebase --autostash origin main; then
+            git rebase --abort 2>/dev/null || true
+            echo "WARN: git pull --rebase failed; proceeding without rebasing onto origin/main."
+          fi
           # Add every file stage 5 publishes, by explicit name. needs_review.json
           # was previously omitted, so it never reached the deployed site -- the
           # admin CMS's Needs Review tab fetched a missing path that the SPA
@@ -113,7 +157,8 @@ jobs:
           # commit orphaned *.tmp files from _write_json_files_atomic.
           git add dashboard/frontend/public/data/records.json \
                   dashboard/frontend/public/data/institutions.json \
-                  dashboard/frontend/public/data/needs_review.json
+                  dashboard/frontend/public/data/needs_review.json \
+                  dashboard/frontend/public/data/health.json
           if git diff --cached --quiet; then
             echo "No data changes — skipping push."
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -126,11 +171,27 @@ jobs:
 
   deploy:
     needs: pipeline
-    # Skip the deploy entirely on a no-op run (nothing new to publish) rather
-    # than redeploying unchanged content. Phase T Task 4 will revisit this
-    # condition to `always()` once a health.json is published on every run,
-    # including refused/failed ones.
-    if: needs.pipeline.outputs.changed == 'true'
+    # Deploy when data actually changed (the common case), OR when the
+    # pipeline job itself failed/was refused -- so a crashed/refused run's
+    # health.json still reaches the live site for the admin CMS's Pipeline
+    # tab to show, even in the edge case where `changed` somehow didn't come
+    # back 'true'. Deliberately NOT a blanket always(): CLAUDE.md's cost-
+    # minimization constraint applies to CI/Firebase-deploy minutes too, and
+    # a genuine no-op run (nothing published, pipeline job succeeded outright)
+    # has nothing new to deploy -- redeploying the same live commit on every
+    # such tick would be pure waste for no observability gain. (Task 1.4's
+    # published_sha output already handles the empty-string edge case if the
+    # pipeline job dies before the commit step ever ran: an empty
+    # needs.pipeline.outputs.published_sha is falsy in GitHub Actions
+    # expressions, so deploy.yml's `ref: ${{ inputs.ref || github.sha }}`
+    # falls back to the dispatch-time commit -- an idempotent, safe redeploy
+    # of the pre-run tree.)
+    # always() && (...) -- not just the bare boolean expression -- because a
+    # job's default (unspecified) `if:` is implicitly ANDed with success():
+    # without always() here, a failed `pipeline` job would skip `deploy`
+    # outright before this expression is even evaluated, defeating the
+    # `needs.pipeline.result == 'failure'` clause entirely.
+    if: always() && (needs.pipeline.outputs.changed == 'true' || needs.pipeline.result == 'failure')
     uses: ./.github/workflows/deploy.yml
     with:
       ref: ${{ needs.pipeline.outputs.published_sha }}
