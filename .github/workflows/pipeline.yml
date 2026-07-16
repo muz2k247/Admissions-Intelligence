@@ -1,20 +1,26 @@
 name: Pipeline — scrape, classify, extract, publish
 
-# Runs the full 5-stage data pipeline on a weekly schedule.
+# Runs the full 5-stage data pipeline.
 # Stage 3 (classification + field extraction) calls the Gemini API directly
 # via pipeline/gemini_classify.py and pipeline/gemini_extract.py.
 #
 # Pushing new data under dashboard/frontend/public/data/** triggers the
 # existing deploy.yml workflow to build and deploy to Firebase Hosting.
 #
+# Deliberately NO `schedule:` trigger of its own (Phase S): the curator's
+# cadence is entirely admin-CMS-configured (settings/pipeline_schedule in
+# Firestore) and enforced by tick.yml, which is the only thing that decides
+# when to dispatch this workflow automatically. A hardcoded cron here
+# alongside that would silently keep firing regardless of what the curator
+# configures in the CMS -- e.g. "manual only" would still get an uncontrolled
+# weekly run -- defeating the entire point of Phase S. Do not re-add one.
+#
 # Manual trigger: Actions tab → "Pipeline" → "Run workflow" button.
 # Also dispatched automatically by tick.yml, per the curator's admin-CMS-
 # configured schedule (see pipeline/schedule_gate.py) or a "Run Now" request.
 
 on:
-  schedule:
-    - cron: '0 6 * * 1'  # Every Monday at 6 AM UTC (11 AM PKT)
-  workflow_dispatch: {}   # Manual trigger
+  workflow_dispatch: {}   # Manual trigger + tick.yml's automated dispatch
 
 jobs:
   pipeline:

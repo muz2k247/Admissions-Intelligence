@@ -1,6 +1,17 @@
 # Admissions Intelligence Pipeline Orchestration Prompt
 
-**Context**: This prompt is designed to be run as a scheduled cloud routine (via the `/schedule` skill / `RemoteTrigger`). It orchestrates all five pipeline stages end-to-end:
+> **Superseded (Phase S, 2026-07-16):** the automated schedule is now entirely
+> admin-CMS-configured (`settings/pipeline_schedule` in Firestore) and enforced
+> by `.github/workflows/tick.yml`, which dispatches `.github/workflows/
+> pipeline.yml` -- see `pipeline/schedule_gate.py` and `docs/admin_cms_setup.md`
+> §7. **If a `/schedule`-registered cloud routine based on this prompt is still
+> active anywhere, deregister it** -- it would run in parallel with tick.yml,
+> executing the pipeline on its own fixed interval regardless of whatever
+> cadence (or "manual only") the curator configures in the CMS, defeating the
+> entire point of Phase S. This file is kept for historical/reference context
+> only; do not schedule a new routine from it.
+
+**Context**: This prompt was originally designed to be run as a scheduled cloud routine (via the `/schedule` skill / `RemoteTrigger`). It orchestrates all five pipeline stages end-to-end:
 1. **Stage 1**: Scrape institutions
 2. **Stage 2**: Chunk for classification
 3. **Stage 3**: Content-classifier (Gemini agent)

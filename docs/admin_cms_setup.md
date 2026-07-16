@@ -95,6 +95,61 @@ extra step needed once `firestore.rules` includes them):
   if the toggle itself can't be read, low-confidence data still gets queued
   rather than silently publishing).
 
+## 7. Pipeline scheduling (Phase S)
+
+Two more Firestore documents, same public-read / allowlisted-curator-write
+pattern as everything above (already covered by the rules deploy in step 4 —
+no extra step needed once `firestore.rules` includes them):
+
+- **`settings/pipeline_schedule`** — the curator's chosen cadence
+  (`manual` / `interval_hours` / `weekly` / `interval_weeks` / `monthly`),
+  set from the CMS's "Schedule" tab and read by
+  `pipeline/schedule_gate.py::fetch_pipeline_schedule()`. Missing/malformed
+  defaults to `{"mode": "manual"}` — the fail-safe direction, since guessing
+  a cadence the curator never configured would be exactly the kind of
+  inference the project's hard rules forbid for any other field.
+- **`settings/pipeline_run_request`** — a curator's "Run Now" request
+  (`{requested_by, requested_at}`). Never cleared by anyone: whether it's
+  still pending is derived by comparing `requested_at` against the most
+  recent `pipeline.yml` run's start time, so there's nothing to acknowledge
+  or write back.
+
+**Execution mechanism** (`.github/workflows/tick.yml`): runs on a `*/15 * * * *`
+cron, reads both documents above via an unauthenticated Firestore REST GET (no
+credential — same pattern as `pipeline/overrides.py`), checks GitHub's own
+Actions API for an already-queued/in-progress `pipeline.yml` run, and
+dispatches `pipeline.yml` (`workflow_dispatch` via GitHub's REST API, using the
+default `GITHUB_TOKEN` scoped `actions: write` — no new secret) if due and
+nothing is already running. `pipeline.yml` itself has **no `schedule:` trigger
+of its own** — only `workflow_dispatch` — so tick.yml (or a future replacement
+execution adapter) is the *only* thing that decides when it runs automatically.
+This is deliberate: the CMS only ever writes the two Firestore documents above;
+the tick mechanism is a replaceable adapter reading them (see CLAUDE.md Phase
+S), so a future migration to a different execution backend (Render, Railway,
+...) only needs a new adapter, not a CMS or schema change.
+
+**Action required once this ships:** because `pipeline.yml`'s old hardcoded
+weekly cron was removed in favor of the CMS-configured cadence, a curator must
+visit the Schedule tab and pick a mode (e.g. weekly, matching the old
+`0 6 * * 1` behavior) — until then, `settings/pipeline_schedule` doesn't exist
+and the pipeline will only ever run via a manual trigger ("Run Now" or the
+Actions tab's "Run workflow" button), never automatically.
+
+**Known operational caveats:**
+- GitHub Actions can automatically disable a workflow's `schedule:` trigger
+  after 60 days with no repository push activity. As long as some cadence is
+  configured and firing, `pipeline.yml`'s own data-publish commits keep the
+  repo active; a curator who sets the schedule to "manual only" for an
+  extended period should periodically check the Actions tab (or the
+  Schedule tab's last-run display) to confirm tick.yml is still enabled.
+- Scheduled GitHub Actions runs can be delayed under platform load (not
+  cancelled — just late). A configured cadence still eventually fires, just
+  not necessarily to the minute.
+- There's no push notification if tick.yml itself fails to dispatch (e.g. a
+  transient GitHub API error) — the Schedule tab's last-run display is the
+  curator-facing signal that something is due but hasn't happened; check the
+  Actions tab for `tick.yml` run failures if that display looks stale.
+
 ## Notes
 - These steps are the admin-CMS analogue of Phase F's one-time deploy-token
   minting: a human does them in the console, never an agent, and no secret from

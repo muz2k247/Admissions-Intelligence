@@ -1,10 +1,19 @@
 name: Deploy dashboard
 
-# The scheduled pipeline routine (see pipeline/orchestration_prompt.md) commits
-# freshly-published dashboard/frontend/public/data/*.json and pushes to main.
-# That push lands here: build the static sites and deploy to Firebase Hosting +
-# Firestore rules. The deploy credential lives only as a GitHub Actions secret
-# (Settings > Secrets and variables > Actions > FIREBASE_TOKEN), never a repo file.
+# pipeline.yml's own "Commit and push if data changed" step commits freshly-
+# published dashboard/frontend/public/data/*.json and pushes to main (pipeline.yml
+# is itself only ever triggered by workflow_dispatch -- manually, or automatically
+# by tick.yml per the admin-CMS-configured schedule; see Phase S / pipeline/
+# schedule_gate.py). That push lands here: build the static sites and deploy to
+# Firebase Hosting + Firestore rules. The deploy credential lives only as a GitHub
+# Actions secret (Settings > Secrets and variables > Actions > FIREBASE_TOKEN),
+# never a repo file.
+#
+# pipeline/orchestration_prompt.md describes an earlier, now-superseded design
+# (a cloud-scheduled routine doing this same commit+push itself) -- see that
+# file's own deprecation note. If a `/schedule`-registered routine based on it
+# is still active anywhere, deregister it: it would run in parallel with
+# tick.yml, bypassing whatever cadence the curator configures in the CMS.
 #
 # Two Hosting sites: `public` (the dashboard) and `admin` (the curator CMS),
 # mapped to sites in .firebaserc. The public dashboard + Firestore rules deploy
