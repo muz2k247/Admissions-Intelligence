@@ -150,6 +150,17 @@ def test_derive_status_failed_for_unknown_decision():
     status, warnings = _derive_status({"publish": {"decision": "something_unexpected"}})
     assert status == STATUS_FAILED
     assert any("something_unexpected" in w for w in warnings)
+    assert any("Unrecognized" in w for w in warnings)
+
+
+def test_derive_status_named_failure_decision_not_reported_as_unrecognized():
+    # run_full.py's stage_5_publish records named failed_* decisions for its
+    # own anticipated early-return branches -- these must read as a clear
+    # failure reason, not get lumped in with a truly unexpected value.
+    status, warnings = _derive_status({"publish": {"decision": "failed_write_error"}})
+    assert status == STATUS_FAILED
+    assert any("Publish failed: failed_write_error" in w for w in warnings)
+    assert not any("Unrecognized" in w for w in warnings)
 
 
 def test_record_stage_never_raises_on_non_json_serializable_payload(tmp_path):

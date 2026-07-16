@@ -124,6 +124,14 @@ def _derive_status(fragment: dict) -> tuple[str, list[str]]:
         elif decision in ("refused_coverage_drop", "refused_no_records"):
             status = STATUS_REFUSED
             warnings.append(f"Publish refused: {decision}")
+        elif isinstance(decision, str) and decision.startswith("failed_"):
+            # Named failure decisions run_full.py's stage_5_publish records
+            # for every one of its own early-return branches (e.g.
+            # failed_write_error, failed_unreadable_record) -- these are
+            # anticipated, not "unrecognized"; the distinct message keeps
+            # them out of the generic unrecognized-value bucket below.
+            status = STATUS_FAILED
+            warnings.append(f"Publish failed: {decision}")
         else:
             status = STATUS_FAILED
             warnings.append(f"Unrecognized publish decision: {decision!r}")

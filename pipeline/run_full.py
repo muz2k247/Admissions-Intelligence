@@ -27,6 +27,7 @@ from extraction.llm_fields import load_llm_field_results
 from extraction.review_gate import content_hash, flagged_fields, needs_review
 from extraction.run import build_extracted_records, write_extracted_records
 from extraction.schema import ExtractedRecord
+from pipeline.health import init_run, record_stage
 from pipeline.institutions_registry import load_merged_institutions
 from pipeline.overrides import fetch_overrides, merge_overrides
 from pipeline.review import fetch_review_decisions, fetch_review_settings
@@ -130,6 +131,7 @@ def stage_1_scrape(out_dir: Path, institution_filter: str | None = None) -> int:
     exit_code = 0
     ok_count = 0
     attempted = 0
+    source_results: list[dict] = []
     for institution, source in iter_sources(institutions):
         if institution_filter and institution.id != institution_filter:
             continue
@@ -150,6 +152,17 @@ def stage_1_scrape(out_dir: Path, institution_filter: str | None = None) -> int:
         out_path = out_dir / f"{institution.id}__{campus_label}.json"
         out_path.write_text(json.dumps(record, indent=2), encoding="utf-8")
 
+        pdf_failure_count = len(result.pdf_failures) if result.pdfs else 0
+        source_results.append({
+            "institution_id": institution.id,
+            "campus": source.campus,
+            "url": source.url,
+            "ok": result.ok,
+            "error": result.error,
+            "pdf_count": len(result.pdfs),
+            "pdf_failure_count": pdf_failure_count,
+        })
+
         if not result.ok:
             print(f"FAIL  {institution.id} ({campus_label}): {result.error}")
             exit_code = 1
@@ -166,11 +179,19 @@ def stage_1_scrape(out_dir: Path, institution_filter: str | None = None) -> int:
     if attempted == 0:
         reason = f"--institution '{institution_filter}' matched no enabled institution" if institution_filter else "0 institutions are enabled in config"
         print(f"ERROR: No sources attempted ({reason}).", file=sys.stderr)
+        record_stage("scrape", {"attempted": 0, "ok": 0, "failed": 0, "sources": [], "reason": reason})
         return 1
 
     print(f"\nStage 1 summary: {ok_count} of {attempted} attempted source(s) processed successfully")
     if exit_code != 0:
         print(f"[WARN] Some sources failed; {ok_count} succeeded. Proceeding with partial data.")
+
+    record_stage("scrape", {
+        "attempted": attempted,
+        "ok": ok_count,
+        "failed": attempted - ok_count,
+        "sources": source_results,
+    })
 
     return exit_code if ok_count == 0 else 0
 
@@ -189,6 +210,7 @@ def stage_2_chunk(scraped_dir: Path, out_path: Path) -> int:
     records = _load_scraped_records(scraped_dir)
     if not records:
         print("ERROR: No scraped records found in", scraped_dir)
+        record_stage("chunk", {"chunks": 0, "skipped": 0})
         return 1
 
     chunks = []
@@ -211,6 +233,7 @@ def stage_2_chunk(scraped_dir: Path, out_path: Path) -> int:
     )
 
     print(f"Stage 2 summary: {len(chunks)} chunk(s) produced, {skipped} record(s) skipped")
+    record_stage("chunk", {"chunks": len(chunks), "skipped": skipped})
     if len(chunks) == 0:
         print("[WARN] No chunks produced. Classifier will have no input.")
         return 1
@@ -274,6 +297,26 @@ def stage_4_build(scraped_dir: Path, classified_path: Path, out_dir: Path, llm_e
         f"{stats['regex_chunks']} via regex fallback), {skipped} skipped, "
         f"{excluded_postgraduate} postgraduate record(s) excluded (undergrad-only scope)"
     )
+    # extraction_mode surfaces a run that "succeeded" (non-zero exit) but
+    # silently used the zero-cost regex fallback for everything -- otherwise
+    # indistinguishable from a healthy LLM-extracted run in CI's green
+    # checkmark alone.
+    if stats["llm_chunks"] > 0 and stats["regex_chunks"] > 0:
+        extraction_mode = "mixed"
+    elif stats["llm_chunks"] > 0:
+        extraction_mode = "llm"
+    elif stats["regex_chunks"] > 0:
+        extraction_mode = "regex_fallback"
+    else:
+        extraction_mode = None
+    record_stage("build", {
+        "records": written,
+        "llm_chunks": stats["llm_chunks"],
+        "regex_chunks": stats["regex_chunks"],
+        "excluded_postgraduate": excluded_postgraduate,
+        "skipped": skipped,
+        "extraction_mode": extraction_mode,
+    })
     if written == 0:
         print("[WARN] No records extracted.")
         return 1
@@ -417,6 +460,7 @@ def stage_5_publish(extracted_dir: Path, publish_dir: Path, allow_coverage_drop:
 
     if not extracted_dir.is_dir():
         print(f"ERROR: Extracted records dir not found: {extracted_dir}", file=sys.stderr)
+        record_stage("publish", {"decision": "failed_extracted_dir_missing", "path": str(extracted_dir)})
         return 1
 
     records: list[ExtractedRecord] = []
@@ -426,6 +470,7 @@ def stage_5_publish(extracted_dir: Path, publish_dir: Path, allow_coverage_drop:
                 records.append(ExtractedRecord.from_dict(json.load(f)))
         except (json.JSONDecodeError, OSError, KeyError, ValueError) as exc:
             print(f"ERROR: Unreadable extracted record {path}: {exc}", file=sys.stderr)
+            record_stage("publish", {"decision": "failed_unreadable_record", "path": str(path)})
             return 1
 
     if not records:
@@ -434,6 +479,7 @@ def stage_5_publish(extracted_dir: Path, publish_dir: Path, allow_coverage_drop:
             "and overwrite previously-published data. Previous data retained.",
             file=sys.stderr,
         )
+        record_stage("publish", {"decision": "refused_no_records"})
         return 1
 
     # Merge in human-verified curator corrections (admin CMS, Phase K).
@@ -509,6 +555,15 @@ def stage_5_publish(extracted_dir: Path, publish_dir: Path, allow_coverage_drop:
             "intentionally disabled), re-run with allow_coverage_drop=True / --allow-coverage-drop.",
             file=sys.stderr,
         )
+        record_stage("publish", {
+            "decision": "refused_coverage_drop",
+            "coverage_dropped": coverage_dropped,
+            "institutions_dropped": institutions_dropped,
+            "new_coverage": new_coverage,
+            "previous_coverage": previous_coverage,
+            "new_institution_count": new_institution_count,
+            "previous_institution_count": previous_institution_count,
+        })
         return 1
 
     # Needs-Review gate (Phase Q). fetch_review_settings() returns {} on any
@@ -563,6 +618,7 @@ def stage_5_publish(extracted_dir: Path, publish_dir: Path, allow_coverage_drop:
         institutions_payload = _institutions_payload()
     except (OSError, KeyError, ValueError) as exc:
         print(f"ERROR: config/institutions.yaml is unreadable: {exc}", file=sys.stderr)
+        record_stage("publish", {"decision": "failed_institutions_config_unreadable"})
         return 1
 
     publish_dir.mkdir(parents=True, exist_ok=True)
@@ -574,12 +630,24 @@ def stage_5_publish(extracted_dir: Path, publish_dir: Path, allow_coverage_drop:
         })
     except OSError as exc:
         print(f"ERROR: Failed to write published data: {exc}", file=sys.stderr)
+        record_stage("publish", {"decision": "failed_write_error"})
         return 1
 
     print(
         f"Stage 5 summary: {len(to_publish)} record(s), {len(to_queue)} queued for review, "
         f"and {len(institutions_payload)} institution(s) published to {publish_dir}"
     )
+    record_stage("publish", {
+        "decision": "published",
+        "records_published": len(to_publish),
+        "queued_for_review": len(to_queue),
+        "institutions_published": len(institutions_payload),
+        "overrides_applied": overridden if overrides else 0,
+        "new_coverage": new_coverage,
+        "previous_coverage": previous_coverage,
+        "new_institution_count": new_institution_count,
+        "previous_institution_count": previous_institution_count,
+    })
     return 0
 
 
@@ -615,6 +683,11 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.stage == "stage1_2":
+        # stage1_2 is always the first stage invoked in a run (see
+        # pipeline.yml), so this is where a run's health fragment starts --
+        # stage4/stage5 are separate CLI invocations within the same CI job
+        # and accumulate into the same .tmp/health fragment via record_stage.
+        init_run()
         stage1_exit = stage_1_scrape(args.out_scraped, args.institution)
         if stage1_exit != 0:
             print("\n⚠️  Stage 1 had failures; proceeding anyway (partial data).")
