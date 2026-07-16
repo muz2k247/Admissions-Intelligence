@@ -6,7 +6,7 @@ import RecordReviewRow from "./RecordReviewRow";
 import ReviewQueue from "./ReviewQueue";
 import ReviewSettings from "./ReviewSettings";
 
-const TABS = ["Published", "Needs Review", "Institutions", "Schedule", "Settings"];
+const TABS = ["Published", "Needs Review", "Institutions", "Pipeline", "Settings"];
 
 function PublishedTab() {
   const [records, setRecords] = useState(null);
@@ -82,7 +82,7 @@ export default function ReviewScreen({ user, onLogOut }) {
       {tab === "Published" && <PublishedTab />}
       {tab === "Needs Review" && <ReviewQueue />}
       {tab === "Institutions" && <InstitutionsManager />}
-      {tab === "Schedule" && <PipelineControl />}
+      {tab === "Pipeline" && <PipelineControl />}
       {tab === "Settings" && <ReviewSettings />}
     </div>
   );

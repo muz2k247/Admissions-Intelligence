@@ -5,6 +5,7 @@ import {
   savePipelineSchedule,
 } from "../api/pipelineSchedule";
 import { fetchLastPipelineRun } from "../api/pipelineStatus";
+import PipelineHealth from "./PipelineHealth";
 
 const MODES = [
   { value: "manual", label: "Manual only" },
@@ -89,172 +90,176 @@ export default function PipelineControl() {
     }
   }
 
-  if (error) return <p className="error" role="alert">{error}</p>;
-  if (!schedule) return <p className="muted">Loading pipeline schedule…</p>;
-
   return (
-    <section className="card settings-panel">
-      <h2>Pipeline Schedule</h2>
-      <p className="muted">
-        Controls when the admissions pipeline runs automatically. A separate,
-        frequently-run check (every ~15 minutes) reads this configuration and
-        triggers the pipeline when it's due — changes here can take up to
-        that long to take effect. "Run Now" works regardless of the mode
-        selected below.
-      </p>
-
-      <label className="settings-panel__row settings-panel__row--column">
-        Cadence
-        <select
-          className="input"
-          value={schedule.mode}
-          onChange={(e) => setSchedule(defaultsForMode(e.target.value))}
-        >
-          {MODES.map((m) => (
-            <option key={m.value} value={m.value}>{m.label}</option>
-          ))}
-        </select>
-      </label>
-
-      {schedule.mode === "interval_hours" && (
+    <>
+      <PipelineHealth />
+      {error && <p className="error" role="alert">{error}</p>}
+      {!error && !schedule && <p className="muted">Loading pipeline schedule…</p>}
+      {!error && schedule && (
+      <section className="card settings-panel">
+        <h2>Pipeline Schedule</h2>
+        <p className="muted">
+          Controls when the admissions pipeline runs automatically. A separate,
+          frequently-run check (every ~15 minutes) reads this configuration and
+          triggers the pipeline when it's due — changes here can take up to
+          that long to take effect. "Run Now" works regardless of the mode
+          selected below.
+        </p>
+  
         <label className="settings-panel__row settings-panel__row--column">
-          Every N hours
-          <input
+          Cadence
+          <select
             className="input"
-            type="number"
-            min="1"
-            step="1"
-            value={schedule.interval_hours}
-            onChange={(e) => setSchedule({ ...schedule, interval_hours: Number(e.target.value) })}
-          />
+            value={schedule.mode}
+            onChange={(e) => setSchedule(defaultsForMode(e.target.value))}
+          >
+            {MODES.map((m) => (
+              <option key={m.value} value={m.value}>{m.label}</option>
+            ))}
+          </select>
         </label>
-      )}
-
-      {schedule.mode === "weekly" && (
-        <>
+  
+        {schedule.mode === "interval_hours" && (
           <label className="settings-panel__row settings-panel__row--column">
-            Day of week (UTC)
-            <select
-              className="input"
-              value={schedule.weekly_day}
-              onChange={(e) => setSchedule({ ...schedule, weekly_day: Number(e.target.value) })}
-            >
-              {WEEKDAYS.map((d, i) => (
-                <option key={d} value={i}>{d}</option>
-              ))}
-            </select>
-          </label>
-          <label className="settings-panel__row settings-panel__row--column">
-            Time (UTC)
-            <input
-              className="input"
-              type="time"
-              value={schedule.weekly_time_utc}
-              onChange={(e) => setSchedule({ ...schedule, weekly_time_utc: e.target.value })}
-            />
-          </label>
-        </>
-      )}
-
-      {schedule.mode === "interval_weeks" && (
-        <>
-          <label className="settings-panel__row settings-panel__row--column">
-            Every N weeks
+            Every N hours
             <input
               className="input"
               type="number"
               min="1"
-              max="520"
               step="1"
-              value={schedule.interval_weeks}
-              onChange={(e) => setSchedule({ ...schedule, interval_weeks: Number(e.target.value) })}
+              value={schedule.interval_hours}
+              onChange={(e) => setSchedule({ ...schedule, interval_hours: Number(e.target.value) })}
             />
           </label>
-          <label className="settings-panel__row settings-panel__row--column">
-            Starting (anchor) date, UTC
-            <input
-              className="input"
-              type="date"
-              value={schedule.interval_anchor}
-              onChange={(e) => setSchedule({ ...schedule, interval_anchor: e.target.value })}
-            />
-          </label>
-          <label className="settings-panel__row settings-panel__row--column">
-            Time (UTC)
-            <input
-              className="input"
-              type="time"
-              value={schedule.weekly_time_utc}
-              onChange={(e) => setSchedule({ ...schedule, weekly_time_utc: e.target.value })}
-            />
-          </label>
-        </>
-      )}
-
-      {schedule.mode === "monthly" && (
-        <>
-          <label className="settings-panel__row settings-panel__row--column">
-            Day of month
-            <input
-              className="input"
-              type="number"
-              min="1"
-              max="28"
-              step="1"
-              value={schedule.monthly_day}
-              onChange={(e) => setSchedule({ ...schedule, monthly_day: Number(e.target.value) })}
-            />
-          </label>
-          <label className="settings-panel__row settings-panel__row--column">
-            Time (UTC)
-            <input
-              className="input"
-              type="time"
-              value={schedule.weekly_time_utc}
-              onChange={(e) => setSchedule({ ...schedule, weekly_time_utc: e.target.value })}
-            />
-          </label>
-        </>
-      )}
-
-      <div>
-        <button className="btn btn--primary" onClick={handleSave} disabled={saveStatus === "saving"}>
-          {saveStatus === "saving" ? "Saving…" : "Save schedule"}
-        </button>
-        {saveStatus === "saved" && <span className="field__status ok">Saved.</span>}
-        {saveStatus && saveStatus !== "saved" && saveStatus !== "saving" && (
-          <span className="field__status err" role="alert">{saveStatus}</span>
         )}
-      </div>
-
-      <hr />
-
-      <div className="settings-panel__row settings-panel__row--column">
-        <button className="btn btn--ghost" onClick={handleRunNow} disabled={runStatus === "requesting"}>
-          {runStatus === "requesting" ? "Requesting…" : "Run Now"}
-        </button>
-        {runStatus === "requested" && (
-          <span className="muted">Requested — checked within ~15 minutes.</span>
-        )}
-        {runStatus && runStatus !== "requested" && runStatus !== "requesting" && (
-          <span className="field__status err" role="alert">{runStatus}</span>
-        )}
-      </div>
-
-      <p className="muted">
-        {lastRun === undefined && "Loading last run status…"}
-        {lastRun === null && "Last run status unavailable."}
-        {lastRun && (
+  
+        {schedule.mode === "weekly" && (
           <>
-            Last run: {new Date(lastRun.createdAt).toLocaleString()} — {lastRun.conclusion || lastRun.status}
-            {lastRun.htmlUrl && (
-              <>
-                {" "}(<a href={lastRun.htmlUrl} target="_blank" rel="noreferrer">view on GitHub</a>)
-              </>
-            )}
+            <label className="settings-panel__row settings-panel__row--column">
+              Day of week (UTC)
+              <select
+                className="input"
+                value={schedule.weekly_day}
+                onChange={(e) => setSchedule({ ...schedule, weekly_day: Number(e.target.value) })}
+              >
+                {WEEKDAYS.map((d, i) => (
+                  <option key={d} value={i}>{d}</option>
+                ))}
+              </select>
+            </label>
+            <label className="settings-panel__row settings-panel__row--column">
+              Time (UTC)
+              <input
+                className="input"
+                type="time"
+                value={schedule.weekly_time_utc}
+                onChange={(e) => setSchedule({ ...schedule, weekly_time_utc: e.target.value })}
+              />
+            </label>
           </>
         )}
-      </p>
-    </section>
+  
+        {schedule.mode === "interval_weeks" && (
+          <>
+            <label className="settings-panel__row settings-panel__row--column">
+              Every N weeks
+              <input
+                className="input"
+                type="number"
+                min="1"
+                max="520"
+                step="1"
+                value={schedule.interval_weeks}
+                onChange={(e) => setSchedule({ ...schedule, interval_weeks: Number(e.target.value) })}
+              />
+            </label>
+            <label className="settings-panel__row settings-panel__row--column">
+              Starting (anchor) date, UTC
+              <input
+                className="input"
+                type="date"
+                value={schedule.interval_anchor}
+                onChange={(e) => setSchedule({ ...schedule, interval_anchor: e.target.value })}
+              />
+            </label>
+            <label className="settings-panel__row settings-panel__row--column">
+              Time (UTC)
+              <input
+                className="input"
+                type="time"
+                value={schedule.weekly_time_utc}
+                onChange={(e) => setSchedule({ ...schedule, weekly_time_utc: e.target.value })}
+              />
+            </label>
+          </>
+        )}
+  
+        {schedule.mode === "monthly" && (
+          <>
+            <label className="settings-panel__row settings-panel__row--column">
+              Day of month
+              <input
+                className="input"
+                type="number"
+                min="1"
+                max="28"
+                step="1"
+                value={schedule.monthly_day}
+                onChange={(e) => setSchedule({ ...schedule, monthly_day: Number(e.target.value) })}
+              />
+            </label>
+            <label className="settings-panel__row settings-panel__row--column">
+              Time (UTC)
+              <input
+                className="input"
+                type="time"
+                value={schedule.weekly_time_utc}
+                onChange={(e) => setSchedule({ ...schedule, weekly_time_utc: e.target.value })}
+              />
+            </label>
+          </>
+        )}
+  
+        <div>
+          <button className="btn btn--primary" onClick={handleSave} disabled={saveStatus === "saving"}>
+            {saveStatus === "saving" ? "Saving…" : "Save schedule"}
+          </button>
+          {saveStatus === "saved" && <span className="field__status ok">Saved.</span>}
+          {saveStatus && saveStatus !== "saved" && saveStatus !== "saving" && (
+            <span className="field__status err" role="alert">{saveStatus}</span>
+          )}
+        </div>
+  
+        <hr />
+  
+        <div className="settings-panel__row settings-panel__row--column">
+          <button className="btn btn--ghost" onClick={handleRunNow} disabled={runStatus === "requesting"}>
+            {runStatus === "requesting" ? "Requesting…" : "Run Now"}
+          </button>
+          {runStatus === "requested" && (
+            <span className="muted">Requested — checked within ~15 minutes.</span>
+          )}
+          {runStatus && runStatus !== "requested" && runStatus !== "requesting" && (
+            <span className="field__status err" role="alert">{runStatus}</span>
+          )}
+        </div>
+  
+        <p className="muted">
+          {lastRun === undefined && "Loading last run status…"}
+          {lastRun === null && "Last run status unavailable."}
+          {lastRun && (
+            <>
+              Last run: {new Date(lastRun.createdAt).toLocaleString()} — {lastRun.conclusion || lastRun.status}
+              {lastRun.htmlUrl && (
+                <>
+                  {" "}(<a href={lastRun.htmlUrl} target="_blank" rel="noreferrer">view on GitHub</a>)
+                </>
+              )}
+            </>
+          )}
+        </p>
+      </section>
+      )}
+    </>
   );
 }
