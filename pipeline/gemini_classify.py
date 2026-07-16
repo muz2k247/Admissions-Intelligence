@@ -8,7 +8,7 @@ orchestration_prompt.md with a direct API call so the pipeline can run
 fully automated in GitHub Actions without an AI orchestrator.
 
 Usage:
-    GEMINI_API_KEY=... python pipeline/gemini_classify.py \\
+    GEMINI_API_KEY=... python -m pipeline.gemini_classify \\
         --chunks .tmp/chunks/chunks.json \\
         --out .tmp/chunks/classified.json
 """

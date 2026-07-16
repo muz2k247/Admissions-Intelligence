@@ -13,7 +13,7 @@ extractor for every chunk — a missing/corrupt llm_fields.json is never
 fatal to the pipeline run.
 
 Usage:
-    GEMINI_API_KEY=... python pipeline/gemini_extract.py \\
+    GEMINI_API_KEY=... python -m pipeline.gemini_extract \\
         --chunks .tmp/chunks/chunks.json \\
         --out .tmp/chunks/llm_fields.json
 """
