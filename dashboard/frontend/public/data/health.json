@@ -1,0 +1,176 @@
+{
+  "schema_version": 1,
+  "run_id": "29525863583",
+  "trigger": "workflow_dispatch",
+  "started_at": "2026-07-16T18:54:54.058717+00:00",
+  "scrape": {
+    "attempted": 17,
+    "ok": 10,
+    "failed": 7,
+    "sources": [
+      {
+        "institution_id": "uet",
+        "campus": "Lahore (Main + sub-campuses)",
+        "url": "https://admission.uet.edu.pk",
+        "ok": false,
+        "error": "fetch failed: 403 Client Error: Forbidden for url: https://admission.uet.edu.pk/",
+        "pdf_count": 0,
+        "pdf_failure_count": 0
+      },
+      {
+        "institution_id": "uet_taxila",
+        "campus": null,
+        "url": "https://admissions.uettaxila.edu.pk",
+        "ok": false,
+        "error": "fetch failed: 403 Client Error: Forbidden for url: https://admissions.uettaxila.edu.pk/",
+        "pdf_count": 0,
+        "pdf_failure_count": 0
+      },
+      {
+        "institution_id": "nust",
+        "campus": null,
+        "url": "https://ugadmissions.nust.edu.pk",
+        "ok": true,
+        "error": null,
+        "pdf_count": 0,
+        "pdf_failure_count": 0
+      },
+      {
+        "institution_id": "giki",
+        "campus": null,
+        "url": "https://giki.edu.pk/admissions/admissions-undergraduates/",
+        "ok": true,
+        "error": null,
+        "pdf_count": 0,
+        "pdf_failure_count": 0
+      },
+      {
+        "institution_id": "pieas",
+        "campus": null,
+        "url": "https://admissions.pieas.edu.pk",
+        "ok": true,
+        "error": null,
+        "pdf_count": 0,
+        "pdf_failure_count": 0
+      },
+      {
+        "institution_id": "fast_nu",
+        "campus": null,
+        "url": "https://admissions.nu.edu.pk",
+        "ok": true,
+        "error": null,
+        "pdf_count": 0,
+        "pdf_failure_count": 0
+      },
+      {
+        "institution_id": "pu",
+        "campus": null,
+        "url": "https://admissions.pu.edu.pk/admissions/",
+        "ok": true,
+        "error": null,
+        "pdf_count": 7,
+        "pdf_failure_count": 0
+      },
+      {
+        "institution_id": "comsats",
+        "campus": null,
+        "url": "https://admissions.comsats.edu.pk",
+        "ok": false,
+        "error": "fetch failed: 403 Client Error: Forbidden for url: https://admissions.comsats.edu.pk/",
+        "pdf_count": 0,
+        "pdf_failure_count": 0
+      },
+      {
+        "institution_id": "lums",
+        "campus": null,
+        "url": "https://admission.lums.edu.pk",
+        "ok": true,
+        "error": null,
+        "pdf_count": 0,
+        "pdf_failure_count": 0
+      },
+      {
+        "institution_id": "itu",
+        "campus": null,
+        "url": "https://itu.edu.pk/admissions",
+        "ok": true,
+        "error": null,
+        "pdf_count": 0,
+        "pdf_failure_count": 0
+      },
+      {
+        "institution_id": "ist",
+        "campus": null,
+        "url": "https://ist.edu.pk/admission",
+        "ok": false,
+        "error": "fetch failed (headless render): rendered content suspiciously short (34 visible chars) -- the page likely didn't finish client-side rendering within the settle wait",
+        "pdf_count": 0,
+        "pdf_failure_count": 0
+      },
+      {
+        "institution_id": "air_university",
+        "campus": "Islamabad & Punjab campuses",
+        "url": "https://portals.au.edu.pk/admissions/",
+        "ok": false,
+        "error": "fetch failed: 403 Client Error: Forbidden for url: https://portals.au.edu.pk/admissions/",
+        "pdf_count": 0,
+        "pdf_failure_count": 0
+      },
+      {
+        "institution_id": "air_university",
+        "campus": "Karachi",
+        "url": "https://kc.au.edu.pk/Pages/Admission/admission_schedule.aspx",
+        "ok": false,
+        "error": "fetch failed: 403 Client Error: Forbidden for url: https://kc.au.edu.pk/Pages/Admission/admission_schedule.aspx",
+        "pdf_count": 0,
+        "pdf_failure_count": 0
+      },
+      {
+        "institution_id": "uhs",
+        "campus": null,
+        "url": "https://www.uhs.edu.pk/admissions.php",
+        "ok": true,
+        "error": null,
+        "pdf_count": 31,
+        "pdf_failure_count": 0
+      },
+      {
+        "institution_id": "nums",
+        "campus": null,
+        "url": "https://numspak.edu.pk/admissions-details.php",
+        "ok": false,
+        "error": "fetch failed: HTTPSConnectionPool(host='numspak.edu.pk', port=443): Read timed out. (read timeout=30)",
+        "pdf_count": 0,
+        "pdf_failure_count": 0
+      },
+      {
+        "institution_id": "aku",
+        "campus": "Pakistan (Karachi) \u2014 MBBS",
+        "url": "https://www.aku.edu/admissions/mbbs/",
+        "ok": true,
+        "error": null,
+        "pdf_count": 3,
+        "pdf_failure_count": 0
+      },
+      {
+        "institution_id": "bahria",
+        "campus": null,
+        "url": "https://www.bahria.edu.pk/Home/AdmissionRoadmap?programType=UnderGraduate",
+        "ok": true,
+        "error": null,
+        "pdf_count": 0,
+        "pdf_failure_count": 0
+      }
+    ]
+  },
+  "chunk": {
+    "chunks": 46,
+    "skipped": 7
+  },
+  "finished_at": "2026-07-16T18:57:46.231200+00:00",
+  "status": "failed",
+  "warnings": [
+    "Run did not reach stage 5 (publish) \u2014 check which stage sections below are present.",
+    "7 of 17 source(s) failed to scrape."
+  ]
+}
