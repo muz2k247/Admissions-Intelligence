@@ -5,6 +5,12 @@ corrections are stored in Firestore and merged into the published static
 `records.json` at pipeline stage 5 (`pipeline/overrides.py`). The public
 dashboard never reads Firestore — it stays 100% static.
 
+**Live URLs:** the admin CMS is served at https://admissions-intelligence-review.web.app
+and reads the public dashboard's published JSON from
+https://admissions-intelligence-2fc32.web.app/data/. Note the public site's
+canonical URL carries the `-2fc32` suffix (it's the project's default Hosting
+site); `https://admissions-intelligence.web.app` is not this project.
+
 Most of the CMS is code (in this repo). A few steps can only be done by a
 human in the Firebase Console / CLI — they create cloud resources or need
 credentials an agent must never hold. Do these once, in order.
