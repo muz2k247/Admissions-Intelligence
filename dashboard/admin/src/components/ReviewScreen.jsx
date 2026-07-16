@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { fetchPublishedRecords } from "../api/records";
 import InstitutionsManager from "./InstitutionsManager";
+import PipelineControl from "./PipelineControl";
 import RecordReviewRow from "./RecordReviewRow";
 import ReviewQueue from "./ReviewQueue";
 import ReviewSettings from "./ReviewSettings";
 
-const TABS = ["Published", "Needs Review", "Institutions", "Settings"];
+const TABS = ["Published", "Needs Review", "Institutions", "Schedule", "Settings"];
 
 function PublishedTab() {
   const [records, setRecords] = useState(null);
@@ -72,6 +73,7 @@ export default function ReviewScreen({ user, onLogOut }) {
       {tab === "Published" && <PublishedTab />}
       {tab === "Needs Review" && <ReviewQueue />}
       {tab === "Institutions" && <InstitutionsManager />}
+      {tab === "Schedule" && <PipelineControl />}
       {tab === "Settings" && <ReviewSettings />}
     </div>
   );
