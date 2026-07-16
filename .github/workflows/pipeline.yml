@@ -90,7 +90,17 @@ jobs:
         run: |
           git config user.name "Admissions Intelligence Pipeline"
           git config user.email "pipeline@admissions-intelligence.local"
-          git add dashboard/frontend/public/data/records.json dashboard/frontend/public/data/institutions.json
+          # Add every file stage 5 publishes, by explicit name. needs_review.json
+          # was previously omitted, so it never reached the deployed site -- the
+          # admin CMS's Needs Review tab fetched a missing path that the SPA
+          # rewrite served as index.html, throwing "Unexpected token '<'". It
+          # also skewed stage 5's coverage-guard baseline (a fresh CI checkout
+          # loaded needs_review.json as [], undercounting the previous run).
+          # Explicit filenames (not `git add <dir>/`) so a mid-write crash can't
+          # commit orphaned *.tmp files from _write_json_files_atomic.
+          git add dashboard/frontend/public/data/records.json \
+                  dashboard/frontend/public/data/institutions.json \
+                  dashboard/frontend/public/data/needs_review.json
           if git diff --cached --quiet; then
             echo "No data changes — skipping push."
           else
