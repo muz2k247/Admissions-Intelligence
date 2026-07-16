@@ -1,0 +1,53 @@
+name: Pipeline Tick — check schedule and dispatch if due
+
+# Runs frequently and decides, purely based on Firestore state, whether the
+# real pipeline (pipeline.yml) is due to run: either the curator's
+# admin-configured cadence (settings/pipeline_schedule) says so, or there's
+# a pending "Run Now" request (settings/pipeline_run_request) from the CMS.
+# See pipeline/schedule_gate.py for the scheduling logic and
+# docs/admin_cms_setup.md for the full design.
+#
+# This workflow ONLY decides + dispatches -- it never runs any pipeline
+# work itself. It also checks GitHub's own run history first and skips
+# dispatching if a pipeline run is already queued/in progress; pipeline.yml
+# additionally carries its own concurrency group as a backstop.
+#
+# No new secrets: GITHUB_TOKEN is the default token GitHub Actions provides
+# every workflow run, scoped here to actions:write so it can list/dispatch
+# runs of pipeline.yml in this same repo.
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: write
+    # Guards against two overlapping ticks (a manual workflow_dispatch of
+    # this workflow racing its own */15 cron instance, or a delayed cron
+    # queue) both deciding independently to dispatch -- pipeline.yml's own
+    # concurrency group would only queue the resulting duplicate run rather
+    # than truly prevent it, so it's cheaper to stop it here instead.
+    concurrency:
+      group: admissions-pipeline-tick
+      cancel-in-progress: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Check schedule and dispatch if due
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python -m pipeline.schedule_gate

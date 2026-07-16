@@ -8,6 +8,8 @@ name: Pipeline — scrape, classify, extract, publish
 # existing deploy.yml workflow to build and deploy to Firebase Hosting.
 #
 # Manual trigger: Actions tab → "Pipeline" → "Run workflow" button.
+# Also dispatched automatically by tick.yml, per the curator's admin-CMS-
+# configured schedule (see pipeline/schedule_gate.py) or a "Run Now" request.
 
 on:
   schedule:
@@ -20,6 +22,15 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: write
+    # Backstop against concurrent runs (Phase S): the tick workflow
+    # (tick.yml) already checks GitHub's run history before dispatching,
+    # but this native concurrency group guarantees it even if a manual
+    # dispatch races a scheduled/tick-triggered one. Queues rather than
+    # cancels -- a racing duplicate trigger runs after the first finishes
+    # instead of cutting off an in-progress publish.
+    concurrency:
+      group: admissions-pipeline
+      cancel-in-progress: false
 
     steps:
       - uses: actions/checkout@v4

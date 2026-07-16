@@ -31,6 +31,7 @@ and calls these.
 from __future__ import annotations
 
 import math
+import os
 import sys
 from datetime import datetime, timedelta, timezone
 
@@ -317,3 +318,148 @@ def is_run_requested(requested_at: datetime | None, last_dispatch_at: datetime |
     if last_dispatch_at is None:
         return True
     return requested_at > last_dispatch_at
+
+
+# ---------------------------------------------------------------------------
+# GitHub Actions integration -- the "tick" side. The CMS only ever writes the
+# two Firestore documents above; everything past this point is the
+# replaceable execution adapter (see CLAUDE.md Phase S: "the mechanism that
+# executes the pipeline should remain replaceable"). A future migration to
+# a different execution backend only needs a new adapter reading the same
+# two documents -- the schema and the CMS don't change.
+# ---------------------------------------------------------------------------
+
+GITHUB_API_BASE = "https://api.github.com"
+PIPELINE_WORKFLOW_FILE = "pipeline.yml"
+
+# GitHub Actions run statuses that mean "still going" -- any of these means
+# a dispatch must NOT happen, since pipeline.yml's own concurrency group
+# would only queue behind it anyway (wasting a redundant run) rather than
+# actually preventing the tick from trying.
+_ACTIVE_RUN_STATUSES = {"queued", "in_progress", "requested", "waiting", "pending"}
+
+_GITHUB_EXCEPTIONS = (requests.RequestException, ValueError, TypeError, KeyError)
+
+
+def _github_headers(token: str) -> dict:
+    return {
+        "Accept": "application/vnd.github+json",
+        "Authorization": f"Bearer {token}",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+
+
+def fetch_workflow_runs(
+    repo: str,
+    token: str,
+    session: requests.Session,
+    workflow_file: str = PIPELINE_WORKFLOW_FILE,
+    per_page: int = 10,
+    timeout: int = _DEFAULT_TIMEOUT,
+) -> list[dict] | None:
+    """Fetch the most recent runs of `workflow_file` via GitHub's REST API.
+
+    Returns None on ANY failure (network error, non-200, malformed JSON) --
+    deliberately distinct from an empty list (which means "fetched fine, the
+    workflow has simply never run"). Callers MUST treat None as "current
+    run state is unknown" and refuse to dispatch, since dispatching blind
+    when we can't confirm nothing is already in flight is the one failure
+    mode this module exists to prevent (concurrent pipeline runs)."""
+    url = f"{GITHUB_API_BASE}/repos/{repo}/actions/workflows/{workflow_file}/runs"
+    try:
+        resp = session.get(url, headers=_github_headers(token), params={"per_page": per_page}, timeout=timeout)
+        resp.raise_for_status()
+        body = resp.json()
+    except _GITHUB_EXCEPTIONS as exc:
+        print(f"WARN  could not fetch workflow runs ({exc}) -- treating run state as unknown", file=sys.stderr)
+        return None
+    if not isinstance(body, dict):
+        return None
+    runs = body.get("workflow_runs")
+    return runs if isinstance(runs, list) else None
+
+
+def summarize_runs(runs: list[dict]) -> tuple[datetime | None, bool]:
+    """Pure summary of raw GitHub API run dicts: (most recent run's
+    created_at, whether any run is currently active). No runs at all ->
+    (None, False). A run with a missing/malformed created_at is skipped for
+    the timestamp but still counts toward the active check."""
+    if not runs:
+        return None, False
+    active = any(isinstance(r, dict) and r.get("status") in _ACTIVE_RUN_STATUSES for r in runs)
+    created_ats = []
+    for r in runs:
+        if not isinstance(r, dict):
+            continue
+        created_at = r.get("created_at")
+        if not isinstance(created_at, str):
+            continue
+        try:
+            created_ats.append(datetime.fromisoformat(created_at.replace("Z", "+00:00")))
+        except ValueError:
+            continue
+    return (max(created_ats) if created_ats else None), active
+
+
+def dispatch_workflow(
+    repo: str,
+    token: str,
+    session: requests.Session,
+    ref: str = "main",  # matches pipeline.yml's own hardcoded `git push origin main`
+    workflow_file: str = PIPELINE_WORKFLOW_FILE,
+    timeout: int = _DEFAULT_TIMEOUT,
+) -> bool:
+    """POST a workflow_dispatch event for `workflow_file`. Returns whether it
+    succeeded (True/False) rather than raising -- a failed dispatch should
+    fail this tick's run loudly (non-zero exit, see main()) but never crash
+    in a way that could look like a partial/ambiguous outcome."""
+    url = f"{GITHUB_API_BASE}/repos/{repo}/actions/workflows/{workflow_file}/dispatches"
+    try:
+        resp = session.post(url, headers=_github_headers(token), json={"ref": ref}, timeout=timeout)
+        resp.raise_for_status()
+        return True
+    except _GITHUB_EXCEPTIONS as exc:
+        print(f"ERROR could not dispatch pipeline workflow ({exc})", file=sys.stderr)
+        return False
+
+
+def main() -> int:
+    """Tick entry point (`python -m pipeline.schedule_gate`), run frequently
+    by .github/workflows/tick.yml. Reads the curator's schedule + any
+    pending manual run-request from Firestore, checks GitHub for an
+    already-active pipeline run, and dispatches pipeline.yml if due and
+    nothing is already in flight. Never dispatches on an unknown state."""
+    token = os.environ.get("GITHUB_TOKEN")
+    repo = os.environ.get("GITHUB_REPOSITORY")
+    if not token or not repo:
+        print("ERROR  GITHUB_TOKEN/GITHUB_REPOSITORY not set -- refusing to run outside GitHub Actions", file=sys.stderr)
+        return 1
+
+    session = requests.Session()
+    schedule = fetch_pipeline_schedule(session=session)
+    requested_at = fetch_run_request(session=session)
+
+    runs = fetch_workflow_runs(repo, token, session)
+    if runs is None:
+        print("WARN  could not determine current pipeline run state -- skipping this tick", file=sys.stderr)
+        return 0
+
+    last_run_at, active = summarize_runs(runs)
+    if active:
+        print("Pipeline already queued/in progress -- skipping this tick")
+        return 0
+
+    now = datetime.now(timezone.utc)
+    due_by_schedule = compute_is_due(schedule, now, last_run_at)
+    due_by_request = is_run_requested(requested_at, last_run_at)
+    if not (due_by_schedule or due_by_request):
+        print("Not due -- skipping this tick")
+        return 0
+
+    reason = "manual run request" if due_by_request else f"cadence ({schedule.get('mode')})"
+    print(f"Dispatching pipeline run ({reason})")
+    return 0 if dispatch_workflow(repo, token, session) else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
