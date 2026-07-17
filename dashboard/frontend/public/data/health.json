@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "run_id": "29554039417",
+  "run_id": "29566836711",
   "trigger": "workflow_dispatch",
-  "started_at": "2026-07-17T04:07:17.325880+00:00",
+  "started_at": "2026-07-17T08:34:01.801003+00:00",
   "scrape": {
     "attempted": 17,
     "ok": 12,
@@ -197,7 +197,7 @@
     "new_institution_count": 11,
     "previous_institution_count": 11
   },
-  "finished_at": "2026-07-17T04:10:12.834456+00:00",
+  "finished_at": "2026-07-17T08:37:15.317946+00:00",
   "status": "published",
   "warnings": [
     "LLM field extraction: 1 batch(es) failed this run.",
