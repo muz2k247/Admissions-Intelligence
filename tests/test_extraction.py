@@ -937,6 +937,190 @@ class TestBuildExtractedRecordsDegreeLevelFiltering:
         assert excluded_postgraduate == 1
 
 
+class TestBuildExtractedRecordsNoiseFilter:
+    """Phase T Task 5.1: drop all-null records, dedup same-content records
+    sharing (institution_id, campus), preferring a priority_chunk_ids
+    survivor (an existing Firestore override/review_decision) over the
+    lowest-chunk_id tiebreak."""
+
+    def _scraped_record(self, institution_id="giki", **overrides):
+        record = {
+            "institution_id": institution_id,
+            "campus": None,
+            "source_url": "https://admissions.giki.edu.pk",
+            "fetched_at": "2026-07-09T00:00:00Z",
+            "html": "<p>Last date to apply: 10 August 2026.</p>",
+            "pdfs": [],
+        }
+        record.update(overrides)
+        return record
+
+    def test_all_null_record_dropped_and_counted(self):
+        # No deadline/programs/constituent_college/admissions_open signal
+        # anywhere in the text -- every REVIEW_FIELDS value is null, so hard
+        # rule 1 makes this a safe drop (asserting no value, not altering one).
+        records = [self._scraped_record(html="<p>Some announcement text with no deadline keyword.</p>")]
+        degree_levels = {"giki": DegreeLevel(value="Undergraduate")}
+        stats: dict[str, int] = {}
+
+        built, _, _ = build_extracted_records(records, degree_levels, stats=stats)
+
+        assert built == []
+        assert stats["dropped_all_null"] == 1
+        assert stats["deduplicated"] == 0
+
+    def test_record_with_any_review_field_set_is_kept(self):
+        records = [self._scraped_record()]  # HTML has an extractable deadline
+        degree_levels = {"giki": DegreeLevel(value="Undergraduate")}
+        stats: dict[str, int] = {}
+
+        built, _, _ = build_extracted_records(records, degree_levels, stats=stats)
+
+        assert len(built) == 1
+        assert stats["dropped_all_null"] == 0
+
+    def test_duplicate_content_within_same_institution_campus_deduplicated_to_lowest_chunk_id(self):
+        # An HTML chunk (id "giki") and a PDF mirror of the exact same text
+        # (id "giki__pdf_...") -- both extract identical field values, so
+        # they dedup to one survivor. "giki" sorts lower than "giki__pdf_...".
+        records = [
+            self._scraped_record(pdfs=[{"url": "https://admissions.giki.edu.pk/notice.pdf", "text": "Last date to apply: 10 August 2026."}])
+        ]
+        # Both chunk_ids classified the same -- degree_level.value is part of
+        # the dedup group key, so a divergent classification here would
+        # (correctly) stop them from being seen as duplicates at all.
+        chunk_ids = [c.id for c in chunk_scraped_record(records[0])]
+        degree_levels = {cid: DegreeLevel(value="Undergraduate") for cid in chunk_ids}
+        stats: dict[str, int] = {}
+
+        built, _, _ = build_extracted_records(records, degree_levels, stats=stats)
+
+        assert [chunk_id for chunk_id, _ in built] == ["giki"]
+        assert stats["deduplicated"] == 1
+        assert stats["dropped_all_null"] == 0
+
+    def test_priority_chunk_id_wins_dedup_tiebreak_over_lower_chunk_id(self):
+        # Same duplicate-content setup as above, but the PDF twin (the
+        # higher-sorting chunk_id) has an existing Firestore override --
+        # losing it to the plain lowest-chunk_id rule would silently orphan
+        # a curator's correction, so priority must override the tiebreak.
+        records = [
+            self._scraped_record(pdfs=[{"url": "https://admissions.giki.edu.pk/notice.pdf", "text": "Last date to apply: 10 August 2026."}])
+        ]
+        chunk_ids = [c.id for c in chunk_scraped_record(records[0])]
+        degree_levels = {cid: DegreeLevel(value="Undergraduate") for cid in chunk_ids}
+        pdf_chunk_id = next(cid for cid in chunk_ids if cid != "giki")
+        stats: dict[str, int] = {}
+
+        built, _, _ = build_extracted_records(
+            records, degree_levels, stats=stats, priority_chunk_ids=frozenset({pdf_chunk_id})
+        )
+
+        assert [chunk_id for chunk_id, _ in built] == [pdf_chunk_id]
+        assert stats["deduplicated"] == 1
+
+    def test_different_institutions_with_identical_content_not_deduplicated(self):
+        records = [
+            self._scraped_record(institution_id="giki"),
+            self._scraped_record(institution_id="nums"),
+        ]
+        degree_levels = {
+            "giki": DegreeLevel(value="Undergraduate"),
+            "nums": DegreeLevel(value="Undergraduate"),
+        }
+        stats: dict[str, int] = {}
+
+        built, _, _ = build_extracted_records(records, degree_levels, stats=stats)
+
+        assert {chunk_id for chunk_id, _ in built} == {"giki", "nums"}
+        assert stats["deduplicated"] == 0
+
+    def test_priority_vs_priority_tie_resolves_to_lowest_chunk_id_not_insertion_order(self):
+        # Regression test: when two candidates in the same dedup group are
+        # BOTH in priority_chunk_ids, the tiebreak must still fall through to
+        # lowest-chunk_id rather than "whichever was inserted into `built`
+        # first" -- those two things aren't the same thing in general (PDF
+        # chunk_ids are derived from a URL hash, not insertion order). These
+        # two PDF URLs are picked (verified via extraction.chunker._pdf_chunk_id)
+        # so the SECOND-inserted PDF's chunk_id sorts LOWER than the first --
+        # an insertion-order-based tiebreak would pick the wrong one here.
+        record = self._scraped_record(
+            pdfs=[
+                {"url": "https://x1.giki.edu.pk/n1.pdf", "text": "Last date to apply: 10 August 2026."},
+                {"url": "https://x10.giki.edu.pk/n10.pdf", "text": "Last date to apply: 10 August 2026."},
+            ]
+        )
+        chunks = chunk_scraped_record(record)
+        pdf_chunks = [c for c in chunks if c.id != "giki"]
+        assert len(pdf_chunks) == 2
+        inserted_first, inserted_second = pdf_chunks[0].id, pdf_chunks[1].id
+        assert inserted_second < inserted_first, "fixture must have insertion order reversed from chunk_id sort order"
+
+        degree_levels = {c.id: DegreeLevel(value="Undergraduate") for c in chunks}
+        stats: dict[str, int] = {}
+
+        built, _, _ = build_extracted_records(
+            [record], degree_levels, stats=stats,
+            priority_chunk_ids=frozenset({inserted_first, inserted_second}),
+        )
+
+        assert [chunk_id for chunk_id, _ in built] == [inserted_second]
+
+    def test_different_content_within_same_institution_not_deduplicated(self):
+        records = [
+            self._scraped_record(
+                pdfs=[{"url": "https://admissions.giki.edu.pk/notice.pdf", "text": "Last date to apply: 20 September 2026."}]
+            )
+        ]
+        degree_levels = {"giki": DegreeLevel(value="Undergraduate")}
+        stats: dict[str, int] = {}
+
+        built, _, _ = build_extracted_records(records, degree_levels, stats=stats)
+
+        assert len(built) == 2
+        assert stats["deduplicated"] == 0
+
+    def test_priority_chunk_id_exempt_from_all_null_drop(self):
+        # Code-reviewer regression (Phase T Task 5.1 follow-up): a chunk_id
+        # with an existing Firestore override/review_decision must survive
+        # the all-null drop even when its OWN raw extraction is entirely
+        # null -- otherwise it never reaches extracted/*.json for stage 5's
+        # merge_overrides() to apply the correction to, silently orphaning
+        # it. This is the exact failure priority_chunk_ids exists to
+        # prevent, so it must apply to the drop step too, not just dedup.
+        records = [self._scraped_record(html="<p>Some announcement text with no deadline keyword.</p>")]
+        degree_levels = {"giki": DegreeLevel(value="Undergraduate")}
+        stats: dict[str, int] = {}
+
+        built, _, _ = build_extracted_records(
+            records, degree_levels, stats=stats, priority_chunk_ids=frozenset({"giki"})
+        )
+
+        assert [chunk_id for chunk_id, _ in built] == ["giki"]
+        assert built[0][1].deadline.value is None  # still honestly null -- not fabricated
+        assert stats["dropped_all_null"] == 0
+
+    def test_non_priority_all_null_chunk_still_dropped_alongside_priority_one(self):
+        # A priority chunk_id's exemption must not leak into a DIFFERENT,
+        # non-priority all-null chunk in the same batch.
+        records = [
+            self._scraped_record(institution_id="giki", html="<p>Some announcement text with no deadline keyword.</p>"),
+            self._scraped_record(institution_id="nums", html="<p>Some announcement text with no deadline keyword.</p>"),
+        ]
+        degree_levels = {
+            "giki": DegreeLevel(value="Undergraduate"),
+            "nums": DegreeLevel(value="Undergraduate"),
+        }
+        stats: dict[str, int] = {}
+
+        built, _, _ = build_extracted_records(
+            records, degree_levels, stats=stats, priority_chunk_ids=frozenset({"giki"})
+        )
+
+        assert [chunk_id for chunk_id, _ in built] == ["giki"]
+        assert stats["dropped_all_null"] == 1
+
+
 # ---------------------------------------------------------------------------
 # fields.py — extract_admissions_open (Phase P chunk 2)
 # ---------------------------------------------------------------------------

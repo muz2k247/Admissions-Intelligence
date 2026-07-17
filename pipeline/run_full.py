@@ -241,7 +241,13 @@ def stage_2_chunk(scraped_dir: Path, out_path: Path) -> int:
     return 0
 
 
-def stage_4_build(scraped_dir: Path, classified_path: Path, out_dir: Path, llm_extracted_path: Path | None = None) -> int:
+def stage_4_build(
+    scraped_dir: Path,
+    classified_path: Path,
+    out_dir: Path,
+    llm_extracted_path: Path | None = None,
+    priority_chunk_ids: frozenset[str] | None = None,
+) -> int:
     """Stage 4: Merge classifier results with field extraction into final records.
 
     llm_extracted_path, when given, is the field-extractor subagent's output
@@ -250,6 +256,16 @@ def stage_4_build(scraped_dir: Path, classified_path: Path, out_dir: Path, llm_e
     (extraction/fields.py). Unlike classified_path, a missing/corrupt
     llm_extracted_path is never fatal to the run -- see the warning printed
     at load time.
+
+    priority_chunk_ids (Phase T Task 5.1) -- chunk_ids with an existing
+    Firestore override or review_decision -- feeds build_extracted_records'
+    noise filter so an overridden/decided twin is never the one dropped in a
+    dedup tie. Deliberately NOT fetched from Firestore in here: this
+    function must stay network-free so unit tests can call it directly
+    without live Firestore access (CLAUDE.md: tests never hit live
+    services). The CLI entrypoint (main(), "stage4") fetches it and passes
+    it in; direct callers that omit it just get the lowest-chunk_id
+    tiebreak, same as no priority data being available.
 
     Returns:
         0 if build succeeds (even if produces 0 records).
@@ -289,13 +305,16 @@ def stage_4_build(scraped_dir: Path, classified_path: Path, out_dir: Path, llm_e
             llm_fields = None
 
     stats: dict[str, int] = {}
-    built, skipped, excluded_postgraduate = build_extracted_records(records, degree_levels, llm_fields, stats=stats)
+    built, skipped, excluded_postgraduate = build_extracted_records(
+        records, degree_levels, llm_fields, stats=stats, priority_chunk_ids=priority_chunk_ids
+    )
     written = write_extracted_records(built, out_dir)
 
     print(
         f"Stage 4 summary: {written} record(s) extracted ({stats['llm_chunks']} via LLM, "
         f"{stats['regex_chunks']} via regex fallback), {skipped} skipped, "
-        f"{excluded_postgraduate} postgraduate record(s) excluded (undergrad-only scope)"
+        f"{excluded_postgraduate} postgraduate record(s) excluded (undergrad-only scope), "
+        f"{stats['dropped_all_null']} all-null dropped, {stats['deduplicated']} deduplicated"
     )
     # extraction_mode surfaces a run that "succeeded" (non-zero exit) but
     # silently used the zero-cost regex fallback for everything -- otherwise
@@ -314,6 +333,8 @@ def stage_4_build(scraped_dir: Path, classified_path: Path, out_dir: Path, llm_e
         "llm_chunks": stats["llm_chunks"],
         "regex_chunks": stats["regex_chunks"],
         "excluded_postgraduate": excluded_postgraduate,
+        "dropped_all_null": stats["dropped_all_null"],
+        "deduplicated": stats["deduplicated"],
         "skipped": skipped,
         "extraction_mode": extraction_mode,
     })
@@ -694,7 +715,13 @@ def main() -> None:
         stage2_exit = stage_2_chunk(args.out_scraped, args.out_chunks)
         sys.exit(stage2_exit)
     elif args.stage == "stage4":
-        sys.exit(stage_4_build(args.out_scraped, args.classified, args.out, args.llm_extracted))
+        # Fetched here, not inside stage_4_build itself, so the function stays
+        # network-free for direct unit-test calls (see its docstring).
+        # fetch_overrides/fetch_review_decisions both degrade to {} on any
+        # Firestore problem, so a fetch failure here just means the dedup
+        # tiebreak falls back to lowest-chunk_id -- never fatal to stage 4.
+        priority_chunk_ids = frozenset(fetch_overrides()) | frozenset(fetch_review_decisions())
+        sys.exit(stage_4_build(args.out_scraped, args.classified, args.out, args.llm_extracted, priority_chunk_ids))
     elif args.stage == "stage5":
         sys.exit(stage_5_publish(args.extracted, args.publish_dir, args.allow_coverage_drop))
 

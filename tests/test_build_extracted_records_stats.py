@@ -63,7 +63,7 @@ class TestBuildExtractedRecordsStats:
 
         built, _, _ = build_extracted_records(records, degree_levels, llm_fields, stats=stats)
 
-        assert stats == {"llm_chunks": 1, "regex_chunks": 1}
+        assert stats == {"llm_chunks": 1, "regex_chunks": 1, "dropped_all_null": 0, "deduplicated": 0}
         giki_record = next(r for cid, r in built if cid == "giki")
         uet_record = next(r for cid, r in built if cid == "uet")
         # giki used the LLM value verbatim...
@@ -86,7 +86,7 @@ class TestBuildExtractedRecordsStats:
 
         build_extracted_records(records, degree_levels, llm_fields, stats=stats)
 
-        assert stats == {"llm_chunks": 1, "regex_chunks": 0}
+        assert stats == {"llm_chunks": 1, "regex_chunks": 0, "dropped_all_null": 0, "deduplicated": 0}
 
     def test_stats_dict_llm_fields_none_yields_zero_llm_chunks(self):
         # llm_fields=None (the step never ran) -- every chunk must be
@@ -100,7 +100,7 @@ class TestBuildExtractedRecordsStats:
 
         build_extracted_records(records, degree_levels, llm_fields=None, stats=stats)
 
-        assert stats == {"llm_chunks": 0, "regex_chunks": 2}
+        assert stats == {"llm_chunks": 0, "regex_chunks": 2, "dropped_all_null": 0, "deduplicated": 0}
 
     def test_stats_dict_excludes_postgraduate_chunks_from_either_counter(self):
         # A Postgraduate-classified chunk is dropped entirely (hard rule 3)
@@ -116,7 +116,7 @@ class TestBuildExtractedRecordsStats:
 
         assert built == []
         assert excluded_postgraduate == 1
-        assert stats == {"llm_chunks": 0, "regex_chunks": 0}
+        assert stats == {"llm_chunks": 0, "regex_chunks": 0, "dropped_all_null": 0, "deduplicated": 0}
 
     def test_stats_dict_preexisting_keys_are_not_reset_to_zero(self):
         # setdefault means a caller who pre-seeds the dict (e.g. accumulating
@@ -128,4 +128,4 @@ class TestBuildExtractedRecordsStats:
 
         build_extracted_records(records, degree_levels, llm_fields=None, stats=stats)
 
-        assert stats == {"llm_chunks": 5, "regex_chunks": 8}
+        assert stats == {"llm_chunks": 5, "regex_chunks": 8, "dropped_all_null": 0, "deduplicated": 0}

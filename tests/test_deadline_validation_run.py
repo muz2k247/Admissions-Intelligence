@@ -164,8 +164,13 @@ class TestBuildExtractedRecordsValidatesLlmDeadline:
             }
         }
 
-        built, _, _ = build_extracted_records(records, degree_levels, llm_fields)
+        stats: dict[str, int] = {}
+        built, _, _ = build_extracted_records(records, degree_levels, llm_fields, stats=stats)
 
-        giki_record = next(r for cid, r in built if cid == "giki")
-        assert giki_record.deadline.value is None
-        assert giki_record.deadline.confidence is None
+        # The malformed deadline is safely nulled, not raised -- with every
+        # other field also null on this fixture, the record has nothing left
+        # to publish, so Phase T's noise filter drops it (hard-rule-1 safe:
+        # this asserts no value, it doesn't alter one). The real assertion
+        # here is that build_extracted_records didn't crash.
+        assert built == []
+        assert stats["dropped_all_null"] == 1

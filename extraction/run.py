@@ -28,6 +28,7 @@ from extraction.classify import load_classifier_results
 from extraction.fields import extract_admissions_open, extract_constituent_college, extract_deadline, extract_programs
 from extraction.llm_fields import load_llm_field_results
 from extraction.normalize import normalize_date_string, validate_deadline_value
+from extraction.review_gate import REVIEW_FIELDS, content_hash
 from extraction.schema import NULL_FIELD, DegreeLevel, Field, ExtractedRecord
 
 
@@ -101,6 +102,7 @@ def build_extracted_records(
     degree_levels: dict,
     llm_fields: dict[str, dict] | None = None,
     stats: dict[str, int] | None = None,
+    priority_chunk_ids: frozenset[str] | None = None,
 ) -> tuple[list[tuple[str, ExtractedRecord]], int, int]:
     """Merge scraped records with classifier output into ExtractedRecords.
 
@@ -128,13 +130,41 @@ def build_extracted_records(
     stats, when given, is filled in with "llm_chunks" and "regex_chunks"
     counts so a caller can tell a healthy LLM extraction step apart from one
     that silently produced nothing (both look identical from the exit code
-    alone, since the regex fallback still yields a normal-looking run)."""
+    alone, since the regex fallback still yields a normal-looking run).
+
+    Noise filter (Phase T Task 5.1), applied after every chunk is built,
+    right before returning: a record is DROPPED iff all four REVIEW_FIELDS
+    (deadline, programs, constituent_college, admissions_open) are null —
+    hard-rule-1 safe, since dropping only ever discards a record that
+    asserts no value at all, never alters one that has a value. A
+    priority_chunk_ids member is exempt from this drop even when all-null:
+    an existing Firestore override/review_decision must still find its
+    chunk_id in extracted/*.json for stage 5's merge_overrides() to apply
+    it, or the correction is silently orphaned. Records sharing
+    (institution_id, campus, degree_level.value) with identical
+    REVIEW_FIELDS values (same extraction/review_gate.content_hash) are
+    deduplicated to one survivor — degree_level.value is part of the group
+    key, not just content_hash's four fields, so an Undergraduate and an
+    Ambiguous chunk that happen to extract identical values are never
+    collapsed into one (hard rule 3: UG/PG routing is a distinct, per-chunk
+    classifier decision). priority_chunk_ids decide the survivor first (an
+    overridden or already-decided twin must never be the one dropped, since
+    overrides and decisions are chunk_id-keyed and losing that chunk_id
+    would silently discard a curator's correction/decision); when priority
+    status is tied (both or neither candidate is in priority_chunk_ids),
+    higher total field confidence wins (hard rule 2 — content_hash compares
+    values only, not confidence, and two identical-value duplicates can
+    still differ in how sure the extractor was); the lowest chunk_id is the
+    final tiebreak when confidence also ties. stats, when given, also gets
+    "dropped_all_null" and "deduplicated" counts."""
     built: list[tuple[str, ExtractedRecord]] = []
     skipped = 0
     excluded_postgraduate = 0
     if stats is not None:
         stats.setdefault("llm_chunks", 0)
         stats.setdefault("regex_chunks", 0)
+        stats.setdefault("dropped_all_null", 0)
+        stats.setdefault("deduplicated", 0)
     for record in records:
         if record.get("error"):
             skipped += 1
@@ -183,7 +213,67 @@ def build_extracted_records(
                 admissions_open=admissions_open,
             )
             built.append((chunk.id, extracted))
-    return built, skipped, excluded_postgraduate
+
+    priority = priority_chunk_ids or frozenset()
+    non_null: list[tuple[str, ExtractedRecord]] = []
+    for chunk_id, record in built:
+        is_all_null = all(getattr(record, name).value is None for name in REVIEW_FIELDS)
+        # A priority chunk_id (existing Firestore override/review_decision) is
+        # exempt from the all-null drop even though its own raw extraction is
+        # empty: dropping it here means it never reaches extracted/*.json, so
+        # stage 5's merge_overrides() would have nothing to apply the
+        # curator's correction to -- silently orphaning it, the exact failure
+        # priority_chunk_ids exists to prevent.
+        if is_all_null and chunk_id not in priority:
+            if stats is not None:
+                stats["dropped_all_null"] += 1
+            continue
+        non_null.append((chunk_id, record))
+
+    record_by_chunk_id = dict(non_null)
+
+    def _confidence_sum(record: ExtractedRecord) -> float:
+        return sum(getattr(record, name).confidence or 0.0 for name in REVIEW_FIELDS)
+
+    # (institution_id, campus, degree_level.value, content_hash) -> chunk_id
+    # of the current survivor for that group. degree_level.value is part of
+    # the key (not just content_hash's four REVIEW_FIELDS) so an
+    # Undergraduate chunk and an Ambiguous chunk that happen to extract
+    # identical field values are never collapsed into one survivor -- that
+    # would silently discard one classification in favor of the other,
+    # conflicting with hard rule 3 (UG/PG routing stays a distinct,
+    # per-chunk classifier decision).
+    survivors: dict[tuple, str] = {}
+    for chunk_id, record in non_null:
+        key = (record.institution_id, record.campus, record.degree_level.value, content_hash(record))
+        current = survivors.get(key)
+        if current is None:
+            survivors[key] = chunk_id
+            continue
+        if stats is not None:
+            stats["deduplicated"] += 1
+        current_is_priority = current in priority
+        new_is_priority = chunk_id in priority
+        if new_is_priority and not current_is_priority:
+            survivors[key] = chunk_id
+        elif new_is_priority == current_is_priority:
+            # Priority status is tied (both or neither) -- prefer whichever
+            # candidate carries higher-confidence field values (hard rule 2),
+            # since content_hash only compares VALUES, not confidence, so two
+            # identical-value duplicates can still differ in how sure the
+            # extractor was (e.g. one LLM-extracted, one regex fallback,
+            # coincidentally agreeing on the value). Lowest chunk_id is the
+            # final, fully deterministic tiebreak when confidence also ties.
+            current_confidence = _confidence_sum(record_by_chunk_id[current])
+            new_confidence = _confidence_sum(record)
+            if new_confidence > current_confidence or (
+                new_confidence == current_confidence and chunk_id < current
+            ):
+                survivors[key] = chunk_id
+
+    winning_chunk_ids = set(survivors.values())
+    deduped = [(chunk_id, record) for chunk_id, record in non_null if chunk_id in winning_chunk_ids]
+    return deduped, skipped, excluded_postgraduate
 
 
 def write_extracted_records(built: list[tuple[str, ExtractedRecord]], out_dir: Path) -> int:
@@ -231,6 +321,7 @@ def run_build(scraped_dir: Path, classified_path: Path, out_dir: Path, llm_extra
 
     print(f"Wrote {written} extracted record(s) -> {out_dir}")
     print(f"Excluded {excluded_postgraduate} postgraduate record(s) (undergrad-only scope)")
+    print(f"Dropped {stats['dropped_all_null']} all-null record(s), deduplicated {stats['deduplicated']} record(s)")
     print(f"Field source: {stats['llm_chunks']} chunk(s) via LLM, {stats['regex_chunks']} via regex fallback")
     if llm_extracted_path is not None and stats["llm_chunks"] == 0 and stats["regex_chunks"] > 0:
         print("WARN  LLM field extraction produced 0 usable chunks; every record used the regex fallback -- check the field-extractor output.")
