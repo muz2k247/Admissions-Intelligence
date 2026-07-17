@@ -56,6 +56,22 @@
   }
 }
 
+.app-footer {
+  max-width: var(--container-max);
+  width: 100%;
+  margin: 0 auto;
+  padding: var(--space-4);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  text-align: center;
+}
+
+@media (min-width: 768px) {
+  .app-footer {
+    padding: var(--space-5) var(--space-6);
+  }
+}
+
 /* Buttons */
 
 .button {

@@ -25,6 +25,15 @@ export function fetchInstitutions() {
   return getJson("/institutions.json");
 }
 
+// health.json (Phase T Task 4) is the 4th static file the pipeline publishes
+// -- same-origin here (unlike the admin CMS, which fetches it cross-origin
+// from this site). Used only for the footer's "Data last updated" stamp
+// (Task 5.3): a fetch failure just means the stamp is omitted, never a
+// blocking error for the records the rest of the page already loaded.
+export function fetchHealth() {
+  return getJson("/health.json");
+}
+
 // No caching of records.json here on purpose: the retry button in App.jsx
 // bumps reloadToken specifically to re-fetch, and once records come from a
 // static file the cron pipeline overwrites periodically, a fresh fetch is

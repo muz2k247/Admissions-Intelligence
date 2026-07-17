@@ -9,6 +9,12 @@ import ReviewSettings from "./ReviewSettings";
 
 const TABS = ["Published", "Needs Review", "Institutions", "Pipeline", "Settings"];
 
+// Admin -> public link only (Phase T Task 5.3, deliberate: zero student value
+// in a public -> admin link, curators have this bookmarked, and Firebase Auth
+// gates the CMS regardless of whether a link to it is discoverable).
+const PUBLIC_SITE_URL =
+  import.meta.env.VITE_PUBLIC_SITE_URL || "https://admissions-intelligence-2fc32.web.app";
+
 function PublishedTab({ institutionNames }) {
   const [records, setRecords] = useState(null);
   const [error, setError] = useState(null);
@@ -87,6 +93,10 @@ export default function ReviewScreen({ user, onLogOut }) {
       <header className="topbar">
         <h1>Curator Review</h1>
         <div className="topbar__user">
+          <a className="topbar__public-link" href={PUBLIC_SITE_URL} target="_blank" rel="noopener noreferrer">
+            View public site <span aria-hidden="true">↗</span>
+            <span className="visually-hidden"> (opens in a new tab)</span>
+          </a>
           <span className="muted">{user.email}</span>
           <button className="btn btn--ghost" onClick={onLogOut}>Sign out</button>
         </div>

@@ -1,9 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
-import { fetchInstitutions, fetchRecords } from "./api";
+import { fetchHealth, fetchInstitutions, fetchRecords } from "./api";
 import FilterBar from "./components/FilterBar";
 import RecordCard from "./components/RecordCard";
 import EmptyState from "./components/EmptyState";
 import ThemeToggle from "./components/ThemeToggle";
+
+// health.finished_at is validated the same way as an invalid/garbage
+// fetched_at anywhere else in this project: fall back to omitting the
+// footer stamp entirely rather than rendering "Invalid Date".
+function formattedFinishedAt(finishedAt) {
+  if (!finishedAt) return null;
+  const date = new Date(finishedAt);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+}
 
 export default function App() {
   const [institutions, setInstitutions] = useState([]);
@@ -12,14 +22,33 @@ export default function App() {
   const [degreeLevel, setDegreeLevel] = useState("Undergraduate");
   const [status, setStatus] = useState("loading"); // loading | ready | error
   const [reloadToken, setReloadToken] = useState(0);
+  // null (not yet loaded / failed) -- footer line is simply omitted; the
+  // permanent staleness alarm this stamp exists for (root cause C, Phase T)
+  // only works if a fetch problem hides the line rather than showing a
+  // stale or garbled one.
+  const [lastUpdated, setLastUpdated] = useState(null);
 
   useEffect(() => {
+    let cancelled = false;
     fetchInstitutions()
-      .then(setInstitutions)
+      .then((data) => {
+        if (!cancelled) setInstitutions(data);
+      })
       .catch(() => {
         /* institutions list is filter metadata only; a failure here still
          * lets records load and the institution filter degrades to empty */
       });
+    fetchHealth()
+      .then((health) => {
+        if (!cancelled) setLastUpdated(formattedFinishedAt(health?.finished_at));
+      })
+      .catch(() => {
+        /* health.json is diagnostic, not load-bearing -- a failure here just
+         * omits the footer stamp, never blocks the records the page shows. */
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -117,6 +146,12 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {lastUpdated && (
+        <footer className="app-footer">
+          <span>Data last updated {lastUpdated}</span>
+        </footer>
+      )}
     </>
   );
 }
