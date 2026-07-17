@@ -10,7 +10,7 @@ const FIELD_LABELS = {
   admissions_open: "Admissions status",
 };
 
-function QueueItem({ record, onDecided }) {
+function QueueItem({ record, onDecided, institutionNames }) {
   const [status, setStatus] = useState(null); // null | "saving" | error string
   // Fields the curator has corrected THIS session, via RecordReviewRow's
   // FieldEditor -- kept here (not just inside FieldEditor's own local state)
@@ -40,6 +40,7 @@ function QueueItem({ record, onDecided }) {
       )}
       <RecordReviewRow
         record={record}
+        institutionNames={institutionNames}
         onFieldSaved={(fieldName, value) => setEdits((prev) => ({ ...prev, [fieldName]: value }))}
       />
       <div className="queue-item__actions">
@@ -57,7 +58,7 @@ function QueueItem({ record, onDecided }) {
   );
 }
 
-export default function ReviewQueue() {
+export default function ReviewQueue({ institutionNames }) {
   const [records, setRecords] = useState(null);
   const [error, setError] = useState(null);
   // Optimistic local hide of decided chunk_ids -- a decision only takes
@@ -107,7 +108,7 @@ export default function ReviewQueue() {
       )}
       <div className="records">
         {pending?.map((record) => (
-          <QueueItem key={record.chunk_id} record={record} onDecided={handleDecided} />
+          <QueueItem key={record.chunk_id} record={record} onDecided={handleDecided} institutionNames={institutionNames} />
         ))}
       </div>
     </div>

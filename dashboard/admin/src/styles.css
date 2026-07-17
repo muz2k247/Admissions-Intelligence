@@ -121,6 +121,8 @@ body {
 .record__src { color: var(--primary); text-decoration: none; white-space: nowrap; }
 .record__src:hover { text-decoration: underline; }
 
+.record__meta { margin: -0.5rem 0 0.75rem; font-size: 0.85rem; }
+
 .record__fields { display: grid; gap: 1rem; }
 
 .field { border-top: 1px solid var(--border); padding-top: 0.75rem; }

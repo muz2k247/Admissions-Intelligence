@@ -8,6 +8,39 @@ const FIELD_LABELS = {
   admissions_open: "Admissions status",
 };
 
+/* extraction/chunker.py::_pdf_chunk_id always ends a PDF chunk_id in
+ * "__pdf_" + (optional path slug + "_") + a 10-char lowercase-hex digest --
+ * matched here anchored at the string's end, not a loose substring check,
+ * so a campus whose slug happens to contain "pdf_" (e.g. "PDF Campus" ->
+ * "pdf_campus") never gets its ordinary page chunk mislabeled as a PDF. */
+const PDF_CHUNK_ID_SUFFIX = /__pdf_[a-z0-9_]*[0-9a-f]{10}$/;
+
+/* A short, human-readable tag for which chunk within an institution/campus
+ * this record came from -- disambiguates duplicate-looking cards once the
+ * pipeline-side dedup (Phase T Task 5.1) still leaves multiple distinct
+ * records for the same institution (e.g. a genuinely different PDF notice).
+ * Not a guess at the chunk's content, just a read of its own id shape. */
+function chunkDiscriminator(chunkId, institutionId) {
+  if (!chunkId) return null;
+  if (PDF_CHUNK_ID_SUFFIX.test(chunkId)) return "PDF notice";
+  if (chunkId === institutionId || chunkId.startsWith(`${institutionId}__`)) return "Page";
+  return chunkId;
+}
+
+function sourceDomain(sourceUrl) {
+  try {
+    return new URL(sourceUrl).hostname;
+  } catch {
+    return null;
+  }
+}
+
+function formattedFetchedAt(fetchedAt) {
+  if (!fetchedAt) return null;
+  const date = new Date(fetchedAt);
+  return Number.isNaN(date.getTime()) ? fetchedAt : date.toLocaleDateString();
+}
+
 /* Render a published field's value for display. Handles the three shapes the
  * pipeline can produce: a scalar string, a list of program strings, and a
  * list of {label, date} objects (multi-deadline). */
@@ -169,15 +202,26 @@ function FieldEditor({ record, fieldName, onFieldSaved }) {
   );
 }
 
-export default function RecordReviewRow({ record, onFieldSaved }) {
+export default function RecordReviewRow({ record, institutionNames, onFieldSaved }) {
+  // Graceful fallback to the raw institution_id: institutionNames is only
+  // populated once ReviewScreen's institutions.json fetch resolves (and
+  // never populated at all if that fetch fails), so this must never assume
+  // a lookup hit.
+  const institutionName = institutionNames?.[record.institution_id] || record.institution_id;
+  const discriminator = chunkDiscriminator(record.chunk_id, record.institution_id);
+  const domain = sourceDomain(record.source_url);
+  const fetchedAt = formattedFetchedAt(record.fetched_at);
+  const metaParts = [fetchedAt, discriminator, domain].filter(Boolean);
+
   return (
     <section className="card record">
       <header className="record__head">
-        <h2>{record.institution_id}{record.campus ? ` — ${record.campus}` : ""}</h2>
+        <h2>{institutionName}{record.campus ? ` — ${record.campus}` : ""}</h2>
         <a className="record__src" href={record.source_url} target="_blank" rel="noopener noreferrer">
           source ↗
         </a>
       </header>
+      {metaParts.length > 0 && <p className="record__meta muted">{metaParts.join(" · ")}</p>}
       <div className="record__fields">
         {OVERRIDABLE_FIELDS.map((fieldName) => (
           <FieldEditor key={fieldName} record={record} fieldName={fieldName} onFieldSaved={onFieldSaved} />

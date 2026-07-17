@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { fetchPublishedInstitutions } from "../api/institutions";
 import { fetchPublishedRecords } from "../api/records";
 import InstitutionsManager from "./InstitutionsManager";
 import PipelineControl from "./PipelineControl";
@@ -8,7 +9,7 @@ import ReviewSettings from "./ReviewSettings";
 
 const TABS = ["Published", "Needs Review", "Institutions", "Pipeline", "Settings"];
 
-function PublishedTab() {
+function PublishedTab({ institutionNames }) {
   const [records, setRecords] = useState(null);
   const [error, setError] = useState(null);
   const [reloadToken, setReloadToken] = useState(0);
@@ -45,7 +46,7 @@ function PublishedTab() {
 
       <div className="records">
         {records?.map((record) => (
-          <RecordReviewRow key={record.chunk_id} record={record} />
+          <RecordReviewRow key={record.chunk_id} record={record} institutionNames={institutionNames} />
         ))}
       </div>
     </>
@@ -54,6 +55,32 @@ function PublishedTab() {
 
 export default function ReviewScreen({ user, onLogOut }) {
   const [tab, setTab] = useState(TABS[0]);
+  // Fetched once here (not per-tab/per-row) so PublishedTab, ReviewQueue, and
+  // every RecordReviewRow inside them share the same id->name lookup instead
+  // of each re-fetching institutions.json independently. A failure here just
+  // means every row falls back to its raw institution_id -- never fatal to
+  // the tab itself.
+  const [institutionNames, setInstitutionNames] = useState({});
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchPublishedInstitutions()
+      .then((institutions) => {
+        if (cancelled) return;
+        const names = {};
+        for (const inst of institutions || []) {
+          if (inst?.id) names[inst.id] = inst.name || inst.id;
+        }
+        setInstitutionNames(names);
+      })
+      .catch(() => {
+        // Silent fallback -- RecordReviewRow renders the raw institution_id
+        // when a name isn't found, so a failed fetch here is never fatal.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div className="screen">
@@ -79,8 +106,8 @@ export default function ReviewScreen({ user, onLogOut }) {
         ))}
       </nav>
 
-      {tab === "Published" && <PublishedTab />}
-      {tab === "Needs Review" && <ReviewQueue />}
+      {tab === "Published" && <PublishedTab institutionNames={institutionNames} />}
+      {tab === "Needs Review" && <ReviewQueue institutionNames={institutionNames} />}
       {tab === "Institutions" && <InstitutionsManager />}
       {tab === "Pipeline" && <PipelineControl />}
       {tab === "Settings" && <ReviewSettings />}
