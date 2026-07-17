@@ -3,7 +3,7 @@
     "institution_id": "aku",
     "campus": "Pakistan (Karachi) \u2014 MBBS",
     "source_url": "https://www.aku.edu/admissions/mbbs/",
-    "fetched_at": "2026-07-16T19:10:36.486615+00:00",
+    "fetched_at": "2026-07-17T04:09:05.557085+00:00",
     "chunk_id": "aku__pakistan_(karachi)_\u2014_mbbs",
     "degree_level": {
       "value": "Undergraduate",
@@ -40,7 +40,7 @@
     "institution_id": "aku",
     "campus": "Pakistan (Karachi) \u2014 MBBS",
     "source_url": "https://www.aku.edu/admissions/Documents/admission-information-MBBS.pdf",
-    "fetched_at": "2026-07-16T19:10:36.486615+00:00",
+    "fetched_at": "2026-07-17T04:09:05.557085+00:00",
     "chunk_id": "aku__pakistan_(karachi)_\u2014_mbbs__pdf_documents_admission_information_mbbs_pdf_74696f6872",
     "degree_level": {
       "value": "Undergraduate",
@@ -78,7 +78,7 @@
     "institution_id": "bahria",
     "campus": null,
     "source_url": "https://www.bahria.edu.pk/Home/AdmissionRoadmap?programType=UnderGraduate",
-    "fetched_at": "2026-07-16T19:10:41.004174+00:00",
+    "fetched_at": "2026-07-17T04:09:10.404391+00:00",
     "chunk_id": "bahria",
     "degree_level": {
       "value": "Undergraduate",
@@ -116,7 +116,7 @@
     "institution_id": "giki",
     "campus": null,
     "source_url": "https://giki.edu.pk/admissions/admissions-undergraduates/",
-    "fetched_at": "2026-07-16T19:08:25.507050+00:00",
+    "fetched_at": "2026-07-17T04:07:19.350266+00:00",
     "chunk_id": "giki",
     "degree_level": {
       "value": "Undergraduate",
@@ -155,7 +155,7 @@
     "institution_id": "ist",
     "campus": null,
     "source_url": "https://ist.edu.pk/admission",
-    "fetched_at": "2026-07-16T19:09:15.869977+00:00",
+    "fetched_at": "2026-07-17T04:08:08.465968+00:00",
     "chunk_id": "ist",
     "degree_level": {
       "value": null,
@@ -193,7 +193,7 @@
     "institution_id": "itu",
     "campus": null,
     "source_url": "https://itu.edu.pk/admissions",
-    "fetched_at": "2026-07-16T19:09:13.398494+00:00",
+    "fetched_at": "2026-07-17T04:08:06.297485+00:00",
     "chunk_id": "itu",
     "degree_level": {
       "value": null,
@@ -232,7 +232,7 @@
     "institution_id": "lums",
     "campus": null,
     "source_url": "https://admission.lums.edu.pk",
-    "fetched_at": "2026-07-16T19:09:11.481091+00:00",
+    "fetched_at": "2026-07-17T04:08:04.483743+00:00",
     "chunk_id": "lums",
     "degree_level": {
       "value": null,
@@ -273,7 +273,7 @@
     "institution_id": "nums",
     "campus": null,
     "source_url": "https://numspak.edu.pk/admissions-details.php",
-    "fetched_at": "2026-07-16T19:10:34.359584+00:00",
+    "fetched_at": "2026-07-17T04:09:03.649232+00:00",
     "chunk_id": "nums",
     "degree_level": {
       "value": null,
@@ -316,7 +316,7 @@
     "institution_id": "nust",
     "campus": null,
     "source_url": "https://ugadmissions.nust.edu.pk",
-    "fetched_at": "2026-07-16T19:08:25.099597+00:00",
+    "fetched_at": "2026-07-17T04:07:17.828596+00:00",
     "chunk_id": "nust",
     "degree_level": {
       "value": "Undergraduate",
@@ -363,7 +363,7 @@
     "institution_id": "pieas",
     "campus": null,
     "source_url": "https://admissions.pieas.edu.pk",
-    "fetched_at": "2026-07-16T19:08:30.543948+00:00",
+    "fetched_at": "2026-07-17T04:07:25.104420+00:00",
     "chunk_id": "pieas",
     "degree_level": {
       "value": null,
@@ -402,7 +402,7 @@
     "institution_id": "pu",
     "campus": null,
     "source_url": "https://admissions.pu.edu.pk/admissions/",
-    "fetched_at": "2026-07-16T19:08:40.845960+00:00",
+    "fetched_at": "2026-07-17T04:07:34.287658+00:00",
     "chunk_id": "pu",
     "degree_level": {
       "value": null,
@@ -442,7 +442,7 @@
     "institution_id": "pu",
     "campus": null,
     "source_url": "https://pu.edu.pk/downloads/Admission-Regulations-Book.pdf?v=26",
-    "fetched_at": "2026-07-16T19:08:40.845960+00:00",
+    "fetched_at": "2026-07-17T04:07:34.287658+00:00",
     "chunk_id": "pu__pdf_downloads_admission_regulations_book_pdf_60fe7a015e",
     "degree_level": {
       "value": null,
@@ -488,7 +488,7 @@
     "institution_id": "pu",
     "campus": null,
     "source_url": "https://pu.edu.pk/downloads/Merit-of-Last-Year-2025.pdf",
-    "fetched_at": "2026-07-16T19:08:40.845960+00:00",
+    "fetched_at": "2026-07-17T04:07:34.287658+00:00",
     "chunk_id": "pu__pdf_downloads_merit_of_last_year_2025_pdf_f60fe34ede",
     "degree_level": {
       "value": "Undergraduate",
@@ -528,7 +528,7 @@
     "institution_id": "pu",
     "campus": null,
     "source_url": "https://pu.edu.pk/images/image/Admission-Notices/Instructions-Eligibility-Criteria-2026-27.pdf",
-    "fetched_at": "2026-07-16T19:08:40.845960+00:00",
+    "fetched_at": "2026-07-17T04:07:34.287658+00:00",
     "chunk_id": "pu__pdf_uctions_eligibility_criteria_2026_27_pdf_306aa168f8",
     "degree_level": {
       "value": "Undergraduate",
@@ -566,7 +566,7 @@
     "institution_id": "uhs",
     "campus": null,
     "source_url": "https://www.uhs.edu.pk/admissions.php",
-    "fetched_at": "2026-07-16T19:09:26.268951+00:00",
+    "fetched_at": "2026-07-17T04:08:19.327013+00:00",
     "chunk_id": "uhs",
     "degree_level": {
       "value": null,
@@ -609,7 +609,7 @@
     "institution_id": "uhs",
     "campus": null,
     "source_url": "https://www.uhs.edu.pk/downloads/postrnbscnursing2year.pdf",
-    "fetched_at": "2026-07-16T19:09:26.268951+00:00",
+    "fetched_at": "2026-07-17T04:08:19.327013+00:00",
     "chunk_id": "uhs__pdf_downloads_postrnbscnursing2year_pdf_6a99d71482",
     "degree_level": {
       "value": "Undergraduate",
@@ -646,7 +646,7 @@
     "institution_id": "uhs",
     "campus": null,
     "source_url": "https://www.uhs.edu.pk/downloads/publicnoticebsn12226.pdf",
-    "fetched_at": "2026-07-16T19:09:26.268951+00:00",
+    "fetched_at": "2026-07-17T04:08:19.327013+00:00",
     "chunk_id": "uhs__pdf_downloads_publicnoticebsn12226_pdf_53a95d8776",
     "degree_level": {
       "value": "Undergraduate",
@@ -683,7 +683,7 @@
     "institution_id": "uhs",
     "campus": null,
     "source_url": "https://www.uhs.edu.pk/downloads/uhsbsnursing.pdf",
-    "fetched_at": "2026-07-16T19:09:26.268951+00:00",
+    "fetched_at": "2026-07-17T04:08:19.327013+00:00",
     "chunk_id": "uhs__pdf_downloads_uhsbsnursing_pdf_faa2114c41",
     "degree_level": {
       "value": "Undergraduate",
@@ -720,7 +720,7 @@
     "institution_id": "uhs",
     "campus": null,
     "source_url": "https://www.uhs.edu.pk/images/BDSvacantseats.pdf",
-    "fetched_at": "2026-07-16T19:09:26.268951+00:00",
+    "fetched_at": "2026-07-17T04:08:19.327013+00:00",
     "chunk_id": "uhs__pdf_images_bdsvacantseats_pdf_e4da4d2340",
     "degree_level": {
       "value": "Undergraduate",
@@ -757,7 +757,7 @@
     "institution_id": "uhs",
     "campus": null,
     "source_url": "https://www.uhs.edu.pk/images/UHSAd1.pdf",
-    "fetched_at": "2026-07-16T19:09:26.268951+00:00",
+    "fetched_at": "2026-07-17T04:08:19.327013+00:00",
     "chunk_id": "uhs__pdf_images_uhsad1_pdf_91559b345f",
     "degree_level": {
       "value": "Undergraduate",
@@ -795,7 +795,7 @@
     "institution_id": "uhs",
     "campus": null,
     "source_url": "https://www.uhs.edu.pk/images/uhsad2.pdf",
-    "fetched_at": "2026-07-16T19:09:26.268951+00:00",
+    "fetched_at": "2026-07-17T04:08:19.327013+00:00",
     "chunk_id": "uhs__pdf_images_uhsad2_pdf_25f6730956",
     "degree_level": {
       "value": "Undergraduate",
@@ -833,7 +833,7 @@
     "institution_id": "uhs",
     "campus": null,
     "source_url": "https://www.uhs.edu.pk/meritlist23/alert13.pdf",
-    "fetched_at": "2026-07-16T19:09:26.268951+00:00",
+    "fetched_at": "2026-07-17T04:08:19.327013+00:00",
     "chunk_id": "uhs__pdf_meritlist23_alert13_pdf_4990453c89",
     "degree_level": {
       "value": "Undergraduate",
