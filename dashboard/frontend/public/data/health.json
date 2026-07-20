@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "run_id": "29573753214",
+  "run_id": "29744152299",
   "trigger": "workflow_dispatch",
-  "started_at": "2026-07-17T10:32:07.121206+00:00",
+  "started_at": "2026-07-20T12:56:57.889427+00:00",
   "scrape": {
     "attempted": 17,
     "ok": 12,
@@ -168,40 +168,14 @@
     "skipped": 5
   },
   "classify": {
-    "chunks_in": 48,
-    "undergraduate": 21,
-    "postgraduate": 15,
-    "ambiguous": 12
+    "error": "503 UNAVAILABLE. {'error': {'code': 503, 'message': 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.', 'status': 'UNAVAILABLE'}}",
+    "chunks_in": 48
   },
-  "extract_llm": {
-    "chunks_in": 48,
-    "chunks_extracted": 8,
-    "batches_failed": 1
-  },
-  "build": {
-    "records": 33,
-    "llm_chunks": 1,
-    "regex_chunks": 32,
-    "excluded_postgraduate": 15,
-    "skipped": 5,
-    "extraction_mode": "mixed"
-  },
-  "publish": {
-    "decision": "published",
-    "records_published": 33,
-    "queued_for_review": 0,
-    "institutions_published": 16,
-    "overrides_applied": 1,
-    "new_coverage": 0.2828282828282828,
-    "previous_coverage": 0.2828282828282828,
-    "new_institution_count": 11,
-    "previous_institution_count": 11
-  },
-  "finished_at": "2026-07-17T10:35:03.350024+00:00",
-  "status": "published",
+  "finished_at": "2026-07-20T12:59:22.733563+00:00",
+  "status": "failed",
   "warnings": [
-    "LLM field extraction: 1 batch(es) failed this run.",
-    "Extraction used a mix of LLM and regex-fallback fields this run.",
+    "Run did not reach stage 5 (publish) \u2014 check which stage sections below are present.",
+    "Classification failed: 503 UNAVAILABLE. {'error': {'code': 503, 'message': 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.', 'status': 'UNAVAILABLE'}}",
     "5 of 17 source(s) failed to scrape."
   ]
 }
