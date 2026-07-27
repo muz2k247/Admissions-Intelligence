@@ -1,1 +1,78 @@
-[]
+[
+  {
+    "institution_id": "nums",
+    "campus": null,
+    "source_url": "https://numspak.edu.pk/admissions-details.php",
+    "fetched_at": "2026-07-27T13:24:41.821367+00:00",
+    "chunk_id": "nums",
+    "degree_level": {
+      "value": null,
+      "reason": "mixed-degree-level"
+    },
+    "constituent_college": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "deadline": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "programs": {
+      "value": [
+        "BDS",
+        "BS",
+        "MBBS"
+      ],
+      "confidence": 0.6,
+      "note": "keyword-spotted program tokens, not exhaustive"
+    },
+    "admissions_open": {
+      "value": "Open",
+      "confidence": 0.8,
+      "note": null
+    },
+    "flagged_fields": [
+      "programs"
+    ],
+    "content_hash": "355bc752c9c4086f2bc351e19bc8c2b94ef9034eb5605acb4dbf8b87abb3c960"
+  },
+  {
+    "institution_id": "uhs",
+    "campus": null,
+    "source_url": "https://www.uhs.edu.pk/downloads/nursingentrancee.pdf",
+    "fetched_at": "2026-07-27T13:23:11.485315+00:00",
+    "chunk_id": "uhs__pdf_downloads_nursingentrancee_pdf_fb6c97ffd3",
+    "degree_level": {
+      "value": "Undergraduate",
+      "reason": null
+    },
+    "constituent_college": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "deadline": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "programs": {
+      "value": [
+        "B.Sc"
+      ],
+      "confidence": 0.6,
+      "note": "keyword-spotted program tokens, not exhaustive"
+    },
+    "admissions_open": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "flagged_fields": [
+      "programs"
+    ],
+    "content_hash": "0720cd8a0790eb2d4d77bcf16e2317138e8c9b7ace3121d8b82bbc091ced9653"
+  }
+]
