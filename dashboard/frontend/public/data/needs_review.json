@@ -1,9 +1,47 @@
 [
   {
+    "institution_id": "ist",
+    "campus": null,
+    "source_url": "https://ist.edu.pk/admission",
+    "fetched_at": "2026-08-10T13:43:08.646503+00:00",
+    "chunk_id": "ist",
+    "degree_level": {
+      "value": null,
+      "reason": "mixed-degree-level"
+    },
+    "constituent_college": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "deadline": {
+      "value": "2026-08-15",
+      "confidence": 0.85,
+      "note": null
+    },
+    "programs": {
+      "value": [
+        "MS",
+        "PhD"
+      ],
+      "confidence": 0.6,
+      "note": "keyword-spotted program tokens, not exhaustive"
+    },
+    "admissions_open": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "flagged_fields": [
+      "programs"
+    ],
+    "content_hash": "59be6a5a2db5f87dea22c5efecb4f2058732858a286b1bb011d06006ae4a4e0f"
+  },
+  {
     "institution_id": "nums",
     "campus": null,
     "source_url": "https://numspak.edu.pk/admissions-details.php",
-    "fetched_at": "2026-07-27T13:24:41.821367+00:00",
+    "fetched_at": "2026-08-10T13:45:10.112972+00:00",
     "chunk_id": "nums",
     "degree_level": {
       "value": null,
@@ -39,11 +77,11 @@
     "content_hash": "355bc752c9c4086f2bc351e19bc8c2b94ef9034eb5605acb4dbf8b87abb3c960"
   },
   {
-    "institution_id": "uhs",
+    "institution_id": "nust",
     "campus": null,
-    "source_url": "https://www.uhs.edu.pk/downloads/nursingentrancee.pdf",
-    "fetched_at": "2026-07-27T13:23:11.485315+00:00",
-    "chunk_id": "uhs__pdf_downloads_nursingentrancee_pdf_fb6c97ffd3",
+    "source_url": "https://ugadmissions.nust.edu.pk",
+    "fetched_at": "2026-08-10T13:42:13.517389+00:00",
+    "chunk_id": "nust",
     "degree_level": {
       "value": "Undergraduate",
       "reason": null
@@ -56,11 +94,11 @@
     "deadline": {
       "value": null,
       "confidence": null,
-      "note": null
+      "note": "conflicting deadline candidates found \u2014 left null rather than guessed"
     },
     "programs": {
       "value": [
-        "B.Sc"
+        "BS"
       ],
       "confidence": 0.6,
       "note": "keyword-spotted program tokens, not exhaustive"
@@ -73,6 +111,6 @@
     "flagged_fields": [
       "programs"
     ],
-    "content_hash": "0720cd8a0790eb2d4d77bcf16e2317138e8c9b7ace3121d8b82bbc091ced9653"
+    "content_hash": "21d7a207e3bfd385dcff31b1228458ebf9dfade022855ff78a80514f3a25241b"
   }
 ]
