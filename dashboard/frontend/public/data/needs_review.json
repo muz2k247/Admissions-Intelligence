@@ -1,47 +1,9 @@
 [
   {
-    "institution_id": "ist",
-    "campus": null,
-    "source_url": "https://ist.edu.pk/admission",
-    "fetched_at": "2026-08-10T13:43:08.646503+00:00",
-    "chunk_id": "ist",
-    "degree_level": {
-      "value": null,
-      "reason": "mixed-degree-level"
-    },
-    "constituent_college": {
-      "value": null,
-      "confidence": null,
-      "note": null
-    },
-    "deadline": {
-      "value": "2026-08-15",
-      "confidence": 0.85,
-      "note": null
-    },
-    "programs": {
-      "value": [
-        "MS",
-        "PhD"
-      ],
-      "confidence": 0.6,
-      "note": "keyword-spotted program tokens, not exhaustive"
-    },
-    "admissions_open": {
-      "value": null,
-      "confidence": null,
-      "note": null
-    },
-    "flagged_fields": [
-      "programs"
-    ],
-    "content_hash": "59be6a5a2db5f87dea22c5efecb4f2058732858a286b1bb011d06006ae4a4e0f"
-  },
-  {
     "institution_id": "nums",
     "campus": null,
     "source_url": "https://numspak.edu.pk/admissions-details.php",
-    "fetched_at": "2026-08-10T13:45:10.112972+00:00",
+    "fetched_at": "2026-08-17T13:26:15.341301+00:00",
     "chunk_id": "nums",
     "degree_level": {
       "value": null,
@@ -80,7 +42,7 @@
     "institution_id": "nust",
     "campus": null,
     "source_url": "https://ugadmissions.nust.edu.pk",
-    "fetched_at": "2026-08-10T13:42:13.517389+00:00",
+    "fetched_at": "2026-08-17T13:22:54.656943+00:00",
     "chunk_id": "nust",
     "degree_level": {
       "value": "Undergraduate",
@@ -112,5 +74,43 @@
       "programs"
     ],
     "content_hash": "21d7a207e3bfd385dcff31b1228458ebf9dfade022855ff78a80514f3a25241b"
+  },
+  {
+    "institution_id": "uhs",
+    "campus": null,
+    "source_url": "https://www.uhs.edu.pk/downloads/levelii11122025.pdf",
+    "fetched_at": "2026-08-17T13:23:59.795422+00:00",
+    "chunk_id": "uhs__pdf_downloads_levelii11122025_pdf_7c70c8a701",
+    "degree_level": {
+      "value": null,
+      "reason": "no-signal"
+    },
+    "constituent_college": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "deadline": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "programs": {
+      "value": [
+        "BDS",
+        "MBBS"
+      ],
+      "confidence": 0.6,
+      "note": "keyword-spotted program tokens, not exhaustive"
+    },
+    "admissions_open": {
+      "value": null,
+      "confidence": null,
+      "note": null
+    },
+    "flagged_fields": [
+      "programs"
+    ],
+    "content_hash": "38a1cbd4f54c8cf4ee576913ce203ad6ac7b676214a2d5f56e9c9d1ec509614f"
   }
 ]

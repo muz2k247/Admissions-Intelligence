@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "run_id": "31394165882",
+  "run_id": "32034750019",
   "trigger": "workflow_dispatch",
-  "started_at": "2026-08-10T13:42:13.028258+00:00",
+  "started_at": "2026-08-17T13:22:53.847116+00:00",
   "scrape": {
     "attempted": 17,
     "ok": 12,
@@ -169,9 +169,9 @@
   },
   "classify": {
     "chunks_in": 49,
-    "undergraduate": 19,
-    "postgraduate": 14,
-    "ambiguous": 16
+    "undergraduate": 20,
+    "postgraduate": 15,
+    "ambiguous": 14
   },
   "extract_llm": {
     "chunks_in": 49,
@@ -179,27 +179,27 @@
     "batches_failed": 1
   },
   "build": {
-    "records": 23,
+    "records": 22,
     "llm_chunks": 2,
     "regex_chunks": 33,
     "excluded_postgraduate": 14,
     "dropped_all_null": 10,
-    "deduplicated": 2,
+    "deduplicated": 3,
     "skipped": 5,
     "extraction_mode": "mixed"
   },
   "publish": {
     "decision": "published",
-    "records_published": 20,
+    "records_published": 19,
     "queued_for_review": 3,
     "institutions_published": 16,
-    "overrides_applied": 1,
-    "new_coverage": 0.37681159420289856,
-    "previous_coverage": 0.3968253968253968,
-    "new_institution_count": 11,
-    "previous_institution_count": 10
+    "overrides_applied": 0,
+    "new_coverage": 0.36363636363636365,
+    "previous_coverage": 0.37681159420289856,
+    "new_institution_count": 10,
+    "previous_institution_count": 11
   },
-  "finished_at": "2026-08-10T13:46:31.833535+00:00",
+  "finished_at": "2026-08-17T13:27:38.014044+00:00",
   "status": "published",
   "warnings": [
     "LLM field extraction: 1 batch(es) failed this run.",
