@@ -3,7 +3,7 @@
     "institution_id": "nums",
     "campus": null,
     "source_url": "https://numspak.edu.pk/admissions-details.php",
-    "fetched_at": "2026-08-17T13:26:15.341301+00:00",
+    "fetched_at": "2026-08-24T13:39:20.711874+00:00",
     "chunk_id": "nums",
     "degree_level": {
       "value": null,
@@ -42,7 +42,7 @@
     "institution_id": "nust",
     "campus": null,
     "source_url": "https://ugadmissions.nust.edu.pk",
-    "fetched_at": "2026-08-17T13:22:54.656943+00:00",
+    "fetched_at": "2026-08-24T13:36:18.760759+00:00",
     "chunk_id": "nust",
     "degree_level": {
       "value": "Undergraduate",
@@ -74,43 +74,5 @@
       "programs"
     ],
     "content_hash": "21d7a207e3bfd385dcff31b1228458ebf9dfade022855ff78a80514f3a25241b"
-  },
-  {
-    "institution_id": "uhs",
-    "campus": null,
-    "source_url": "https://www.uhs.edu.pk/downloads/levelii11122025.pdf",
-    "fetched_at": "2026-08-17T13:23:59.795422+00:00",
-    "chunk_id": "uhs__pdf_downloads_levelii11122025_pdf_7c70c8a701",
-    "degree_level": {
-      "value": null,
-      "reason": "no-signal"
-    },
-    "constituent_college": {
-      "value": null,
-      "confidence": null,
-      "note": null
-    },
-    "deadline": {
-      "value": null,
-      "confidence": null,
-      "note": null
-    },
-    "programs": {
-      "value": [
-        "BDS",
-        "MBBS"
-      ],
-      "confidence": 0.6,
-      "note": "keyword-spotted program tokens, not exhaustive"
-    },
-    "admissions_open": {
-      "value": null,
-      "confidence": null,
-      "note": null
-    },
-    "flagged_fields": [
-      "programs"
-    ],
-    "content_hash": "38a1cbd4f54c8cf4ee576913ce203ad6ac7b676214a2d5f56e9c9d1ec509614f"
   }
 ]
