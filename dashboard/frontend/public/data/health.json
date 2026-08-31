@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "run_id": "32733621501",
+  "run_id": "33399397365",
   "trigger": "workflow_dispatch",
-  "started_at": "2026-08-24T13:36:18.274181+00:00",
+  "started_at": "2026-08-31T13:53:19.667096+00:00",
   "scrape": {
     "attempted": 17,
     "ok": 12,
@@ -195,11 +195,11 @@
     "institutions_published": 16,
     "overrides_applied": 1,
     "new_coverage": 0.34782608695652173,
-    "previous_coverage": 0.36363636363636365,
+    "previous_coverage": 0.34782608695652173,
     "new_institution_count": 11,
-    "previous_institution_count": 10
+    "previous_institution_count": 11
   },
-  "finished_at": "2026-08-24T13:40:26.422873+00:00",
+  "finished_at": "2026-08-31T13:57:58.460604+00:00",
   "status": "published",
   "warnings": [
     "LLM field extraction: 1 batch(es) failed this run.",

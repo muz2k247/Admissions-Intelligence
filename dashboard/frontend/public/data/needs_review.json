@@ -3,7 +3,7 @@
     "institution_id": "nums",
     "campus": null,
     "source_url": "https://numspak.edu.pk/admissions-details.php",
-    "fetched_at": "2026-08-24T13:39:20.711874+00:00",
+    "fetched_at": "2026-08-31T13:55:53.487208+00:00",
     "chunk_id": "nums",
     "degree_level": {
       "value": null,
@@ -42,7 +42,7 @@
     "institution_id": "nust",
     "campus": null,
     "source_url": "https://ugadmissions.nust.edu.pk",
-    "fetched_at": "2026-08-24T13:36:18.760759+00:00",
+    "fetched_at": "2026-08-31T13:53:20.498419+00:00",
     "chunk_id": "nust",
     "degree_level": {
       "value": "Undergraduate",
