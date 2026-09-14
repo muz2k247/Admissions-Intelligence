@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
-  "run_id": "34149174076",
+  "run_id": "34852781144",
   "trigger": "workflow_dispatch",
-  "started_at": "2026-09-07T17:50:01.543316+00:00",
+  "started_at": "2026-09-14T14:00:58.416487+00:00",
   "scrape": {
     "attempted": 17,
-    "ok": 10,
-    "failed": 7,
+    "ok": 12,
+    "failed": 5,
     "sources": [
       {
         "institution_id": "uet",
@@ -57,8 +57,8 @@
         "institution_id": "fast_nu",
         "campus": null,
         "url": "https://admissions.nu.edu.pk",
-        "ok": false,
-        "error": "fetch failed: HTTPSConnectionPool(host='admissions.nu.edu.pk', port=443): Max retries exceeded with url: / (Caused by ConnectTimeoutError(<HTTPSConnection(host='admissions.nu.edu.pk', port=443) at 0x7fdce8033a40>, 'Connection to admissions.nu.edu.pk timed out. (connect timeout=30)'))",
+        "ok": true,
+        "error": null,
         "pdf_count": 0,
         "pdf_failure_count": 0
       },
@@ -138,8 +138,8 @@
         "institution_id": "nums",
         "campus": null,
         "url": "https://numspak.edu.pk/admissions-details.php",
-        "ok": false,
-        "error": "fetch failed: 403 Client Error: Forbidden for url: https://numspak.edu.pk/admissions-details.php",
+        "ok": true,
+        "error": null,
         "pdf_count": 0,
         "pdf_failure_count": 0
       },
@@ -164,18 +164,18 @@
     ]
   },
   "chunk": {
-    "chunks": 47,
-    "skipped": 7
+    "chunks": 49,
+    "skipped": 5
   },
   "classify": {
-    "error": "401 UNAUTHENTICATED. {'error': {'code': 401, 'message': 'Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.', 'status': 'UNAUTHENTICATED', 'details': [{'@type': 'type.googleapis.com/google.rpc.ErrorInfo', 'reason': 'ACCESS_TOKEN_TYPE_UNSUPPORTED', 'metadata': {'method': 'google.ai.generativelanguage.v1beta.GenerativeService.GenerateContent', 'service': 'generativelanguage.googleapis.com'}}]}}",
-    "chunks_in": 47
+    "error": "401 UNAUTHENTICATED. {'error': {'code': 401, 'message': 'Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.', 'status': 'UNAUTHENTICATED', 'details': [{'@type': 'type.googleapis.com/google.rpc.ErrorInfo', 'reason': 'ACCESS_TOKEN_TYPE_UNSUPPORTED', 'metadata': {'service': 'generativelanguage.googleapis.com', 'method': 'google.ai.generativelanguage.v1beta.GenerativeService.GenerateContent'}}]}}",
+    "chunks_in": 49
   },
-  "finished_at": "2026-09-07T17:53:03.955449+00:00",
+  "finished_at": "2026-09-14T14:03:35.091743+00:00",
   "status": "failed",
   "warnings": [
     "Run did not reach stage 5 (publish) \u2014 check which stage sections below are present.",
-    "Classification failed: 401 UNAUTHENTICATED. {'error': {'code': 401, 'message': 'Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.', 'status': 'UNAUTHENTICATED', 'details': [{'@type': 'type.googleapis.com/google.rpc.ErrorInfo', 'reason': 'ACCESS_TOKEN_TYPE_UNSUPPORTED', 'metadata': {'method': 'google.ai.generativelanguage.v1beta.GenerativeService.GenerateContent', 'service': 'generativelanguage.googleapis.com'}}]}}",
-    "7 of 17 source(s) failed to scrape."
+    "Classification failed: 401 UNAUTHENTICATED. {'error': {'code': 401, 'message': 'Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.', 'status': 'UNAUTHENTICATED', 'details': [{'@type': 'type.googleapis.com/google.rpc.ErrorInfo', 'reason': 'ACCESS_TOKEN_TYPE_UNSUPPORTED', 'metadata': {'service': 'generativelanguage.googleapis.com', 'method': 'google.ai.generativelanguage.v1beta.GenerativeService.GenerateContent'}}]}}",
+    "5 of 17 source(s) failed to scrape."
   ]
 }
