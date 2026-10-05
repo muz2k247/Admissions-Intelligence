@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "run_id": "36464470531",
+  "run_id": "37372785717",
   "trigger": "workflow_dispatch",
-  "started_at": "2026-09-28T18:20:38.242354+00:00",
+  "started_at": "2026-10-05T20:57:06.419382+00:00",
   "scrape": {
     "attempted": 17,
     "ok": 12,
@@ -132,7 +132,7 @@
         "ok": true,
         "error": null,
         "pdf_count": 33,
-        "pdf_failure_count": 1
+        "pdf_failure_count": 0
       },
       {
         "institution_id": "nums",
@@ -168,14 +168,14 @@
     "skipped": 5
   },
   "classify": {
-    "error": "401 UNAUTHENTICATED. {'error': {'code': 401, 'message': 'Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.', 'status': 'UNAUTHENTICATED', 'details': [{'@type': 'type.googleapis.com/google.rpc.ErrorInfo', 'reason': 'ACCESS_TOKEN_TYPE_UNSUPPORTED', 'metadata': {'method': 'google.ai.generativelanguage.v1beta.GenerativeService.GenerateContent', 'service': 'generativelanguage.googleapis.com'}}]}}",
+    "error": "401 UNAUTHENTICATED. {'error': {'code': 401, 'message': 'Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.', 'status': 'UNAUTHENTICATED', 'details': [{'@type': 'type.googleapis.com/google.rpc.ErrorInfo', 'reason': 'ACCESS_TOKEN_TYPE_UNSUPPORTED', 'metadata': {'service': 'generativelanguage.googleapis.com', 'method': 'google.ai.generativelanguage.v1beta.GenerativeService.GenerateContent'}}]}}",
     "chunks_in": 50
   },
-  "finished_at": "2026-09-28T18:23:42.513075+00:00",
+  "finished_at": "2026-10-05T20:59:52.855109+00:00",
   "status": "failed",
   "warnings": [
     "Run did not reach stage 5 (publish) \u2014 check which stage sections below are present.",
-    "Classification failed: 401 UNAUTHENTICATED. {'error': {'code': 401, 'message': 'Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.', 'status': 'UNAUTHENTICATED', 'details': [{'@type': 'type.googleapis.com/google.rpc.ErrorInfo', 'reason': 'ACCESS_TOKEN_TYPE_UNSUPPORTED', 'metadata': {'method': 'google.ai.generativelanguage.v1beta.GenerativeService.GenerateContent', 'service': 'generativelanguage.googleapis.com'}}]}}",
+    "Classification failed: 401 UNAUTHENTICATED. {'error': {'code': 401, 'message': 'Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.', 'status': 'UNAUTHENTICATED', 'details': [{'@type': 'type.googleapis.com/google.rpc.ErrorInfo', 'reason': 'ACCESS_TOKEN_TYPE_UNSUPPORTED', 'metadata': {'service': 'generativelanguage.googleapis.com', 'method': 'google.ai.generativelanguage.v1beta.GenerativeService.GenerateContent'}}]}}",
     "5 of 17 source(s) failed to scrape."
   ]
 }
