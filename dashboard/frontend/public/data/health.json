@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "run_id": "37372785717",
+  "run_id": "38291082543",
   "trigger": "workflow_dispatch",
-  "started_at": "2026-10-05T20:57:06.419382+00:00",
+  "started_at": "2026-10-12T18:28:25.593656+00:00",
   "scrape": {
     "attempted": 17,
     "ok": 12,
@@ -171,7 +171,7 @@
     "error": "401 UNAUTHENTICATED. {'error': {'code': 401, 'message': 'Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.', 'status': 'UNAUTHENTICATED', 'details': [{'@type': 'type.googleapis.com/google.rpc.ErrorInfo', 'reason': 'ACCESS_TOKEN_TYPE_UNSUPPORTED', 'metadata': {'service': 'generativelanguage.googleapis.com', 'method': 'google.ai.generativelanguage.v1beta.GenerativeService.GenerateContent'}}]}}",
     "chunks_in": 50
   },
-  "finished_at": "2026-10-05T20:59:52.855109+00:00",
+  "finished_at": "2026-10-12T18:30:55.599919+00:00",
   "status": "failed",
   "warnings": [
     "Run did not reach stage 5 (publish) \u2014 check which stage sections below are present.",
