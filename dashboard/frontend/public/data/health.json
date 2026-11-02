@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "run_id": "40346511614",
+  "run_id": "41526544354",
   "trigger": "workflow_dispatch",
-  "started_at": "2026-10-26T15:09:45.994348+00:00",
+  "started_at": "2026-11-02T21:15:07.385808+00:00",
   "scrape": {
     "attempted": 17,
     "ok": 12,
@@ -168,14 +168,14 @@
     "skipped": 5
   },
   "classify": {
-    "error": "401 UNAUTHENTICATED. {'error': {'code': 401, 'message': 'API key not valid. Please pass a valid API key.', 'status': 'UNAUTHENTICATED', 'details': [{'@type': 'type.googleapis.com/google.rpc.ErrorInfo', 'reason': 'ACCESS_TOKEN_TYPE_UNSUPPORTED', 'metadata': {'service': 'generativelanguage.googleapis.com', 'method': 'google.ai.generativelanguage.v1beta.GenerativeService.GenerateContent'}}]}}",
+    "error": "401 UNAUTHENTICATED. {'error': {'code': 401, 'message': 'API key not valid. Please pass a valid API key.', 'status': 'UNAUTHENTICATED', 'details': [{'@type': 'type.googleapis.com/google.rpc.ErrorInfo', 'reason': 'ACCESS_TOKEN_TYPE_UNSUPPORTED', 'metadata': {'method': 'google.ai.generativelanguage.v1beta.GenerativeService.GenerateContent', 'service': 'generativelanguage.googleapis.com'}}]}}",
     "chunks_in": 50
   },
-  "finished_at": "2026-10-26T15:11:47.056786+00:00",
+  "finished_at": "2026-11-02T21:17:45.112813+00:00",
   "status": "failed",
   "warnings": [
     "Run did not reach stage 5 (publish) \u2014 check which stage sections below are present.",
-    "Classification failed: 401 UNAUTHENTICATED. {'error': {'code': 401, 'message': 'API key not valid. Please pass a valid API key.', 'status': 'UNAUTHENTICATED', 'details': [{'@type': 'type.googleapis.com/google.rpc.ErrorInfo', 'reason': 'ACCESS_TOKEN_TYPE_UNSUPPORTED', 'metadata': {'service': 'generativelanguage.googleapis.com', 'method': 'google.ai.generativelanguage.v1beta.GenerativeService.GenerateContent'}}]}}",
+    "Classification failed: 401 UNAUTHENTICATED. {'error': {'code': 401, 'message': 'API key not valid. Please pass a valid API key.', 'status': 'UNAUTHENTICATED', 'details': [{'@type': 'type.googleapis.com/google.rpc.ErrorInfo', 'reason': 'ACCESS_TOKEN_TYPE_UNSUPPORTED', 'metadata': {'method': 'google.ai.generativelanguage.v1beta.GenerativeService.GenerateContent', 'service': 'generativelanguage.googleapis.com'}}]}}",
     "5 of 17 source(s) failed to scrape."
   ]
 }
